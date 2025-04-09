@@ -1,7 +1,7 @@
-from aiohttp.web import (
-    Application as AiohttpApplication,
-)
+from aiohttp.web import Application as AiohttpApplication
+
 from app.store.store import setup_store
+
 from .routes import setup_routes
 
 __all__ = ("Application",)

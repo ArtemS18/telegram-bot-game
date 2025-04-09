@@ -1,5 +1,10 @@
 import asyncio
+import logging
+
 from app.store import Store
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class Poller:
@@ -23,9 +28,9 @@ class Poller:
         try:
             while self.is_running:
                 await self.store.tg_api.poll()
-                await asyncio.sleep(1)  # Пауза перед следующим опросом для предотвращения частых запросов
+                await asyncio.sleep(1) 
         except Exception as e:
-            print(f"Произошла ошибка в poller: {e}")
+            logger.error(e)
             self.is_running = False
         finally:
             if self.poll_task:

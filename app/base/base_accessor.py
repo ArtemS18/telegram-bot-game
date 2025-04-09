@@ -3,7 +3,8 @@ import typing
 if typing.TYPE_CHECKING:
     from aiohttp.web import Application
 
-class BaseAccessor():
+
+class BaseAccessor:
     def __init__(self, app: "Application", *args, **kwargs):
         self.app = app
 
@@ -12,6 +13,7 @@ class BaseAccessor():
 
     async def connect(self, app: "Application"):
         pass
+
     async def disconnect(self, app: "Application"):
         pass
 

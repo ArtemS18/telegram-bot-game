@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class User:
     id: int
 
+
 @dataclass
 class Chat:
-    chat_id : int
+    chat_id: int
+
 
 @dataclass
 class Message:
