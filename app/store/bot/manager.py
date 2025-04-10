@@ -16,7 +16,7 @@ class BotManager:
     async def handle_updates(self, updates: list[Update]):
         """Обрабатывает список обновлений, полученных от TG API."""
         for update in updates:
-            if update.message:
+            if update.message.text:
                 message = update.message
                 chat_id = message.chat.id
                 incoming_message_text = message.text

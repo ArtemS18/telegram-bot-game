@@ -21,7 +21,7 @@ class Message:
     from_user: User 
     date: int 
     chat: Chat 
-    text: str
+    text: str | None = None
 
 
 @dataclass
