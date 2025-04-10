@@ -18,9 +18,7 @@ class Config:
 
 
 def setup_config(app: "Application", path: str):
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         raw_config = yaml.safe_load(f)
 
-    app.config = Config(
-        bot=BotConfig(token=raw_config["bot"]["token"])
-    )
+    app.config = Config(bot=BotConfig(token=raw_config["bot"]["token"]))

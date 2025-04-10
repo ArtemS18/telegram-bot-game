@@ -23,6 +23,7 @@ class BotManager:
 
                 if incoming_message_text.strip():
                     response_message_text = incoming_message_text
-                    message = MessageDTO(chat_id=chat_id, 
-                                         text=response_message_text)
+                    message = MessageDTO(
+                        chat_id=chat_id, text=response_message_text
+                    )
                     await self.app.store.tg_api.send_message(message)

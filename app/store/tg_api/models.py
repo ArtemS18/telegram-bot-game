@@ -18,9 +18,9 @@ class Chat:
 @dataclass
 class Message:
     message_id: int
-    from_user: User 
-    date: int 
-    chat: Chat 
+    from_user: User
+    date: int
+    chat: Chat
     text: str | None = None
 
 
@@ -32,7 +32,7 @@ class InlineQuery:
     offset: str
 
 
-@dataclass 
+@dataclass
 class CallbackQuery:
     id: int
     from_user: User
@@ -50,5 +50,5 @@ class Update:
 
 @dataclass
 class MessageDTO:
-    chat_id: str 
+    chat_id: str
     text: str

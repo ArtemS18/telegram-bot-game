@@ -16,5 +16,3 @@ class BaseAccessor:
 
     async def disconnect(self, app: "Application"):
         pass
-
-

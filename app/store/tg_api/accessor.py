@@ -26,40 +26,42 @@ class TgApiAccessor(BaseAccessor):
         self.poller: Poller | None = None
         self.offset: int = 0
         self.update_schema = UpdateSchema()
-        
+
     async def connect(self, app: "Application"):
-         self.session = ClientSession()
-         self.poller = Poller(self.app.store)
-         await self.poller.start()
-         logger.info("Start polling")
-         
+        self.session = ClientSession()
+        self.poller = Poller(self.app.store)
+        await self.poller.start()
+        logger.info("Start polling")
+
     async def disconnect(self, app: "Application"):
         if self.poller.is_running():
             await self.poller.stop()
 
-    @staticmethod 
+    @staticmethod
     def _build_query(host: str, token: str, method: str, params: dict) -> str:
         url = f"{host}{token}/"
         return f"{urljoin(url, method)}?{urlencode(params)}"
-    
+
     async def send_message(self, message: MessageDTO):
-         async with self.session.post(
-             self._build_query(
+        async with self.session.post(
+            self._build_query(
                 host=API_URL,
                 token=self.app.config.bot.token,
                 method="sendMessage",
-                params={"chat_id": message.chat_id, "text": message.text})
+                params={"chat_id": message.chat_id, "text": message.text},
+            )
         ) as response:
-             data = await response.json()
-             logger.info(data)
-    
+            data = await response.json()
+            logger.info(data)
+
     async def poll(self):
         async with self.session.get(
             self._build_query(
                 host=API_URL,
                 token=self.app.config.bot.token,
                 method="getUpdates",
-                params={"offset": self.offset, "timeout": 30})
+                params={"offset": self.offset, "timeout": 30},
+            )
         ) as response:
             data = await response.json()
             results = data.get("result", [])
@@ -72,8 +74,3 @@ class TgApiAccessor(BaseAccessor):
                     logger.info(update)
                     updates.append(update)
                 await self.app.store.bot_manager.handle_updates(updates)
-
-
-            
-
-

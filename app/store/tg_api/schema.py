@@ -37,7 +37,7 @@ class ChatSchema(Schema):
 
 class MessageSchema(Schema):
     message_id = fields.Int(required=True)
-    from_user = fields.Nested(UserSchema, data_key="from") 
+    from_user = fields.Nested(UserSchema, data_key="from")
     date = fields.Int(required=True)
     chat = fields.Nested(ChatSchema, required=True)
     text = fields.Str(allow_none=True)
@@ -78,5 +78,3 @@ class UpdateSchema(Schema):
     @post_load
     def make_update(self, data, **kwargs):
         return Update(**data)
-
-    
