@@ -3,7 +3,6 @@ import logging
 
 from app.store import Store
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

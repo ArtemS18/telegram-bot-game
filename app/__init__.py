@@ -8,4 +8,4 @@ def read_version():
 
 
 __appname__ = "kts_backend"
-__version__ = "1"
+__version__ = read_version()
