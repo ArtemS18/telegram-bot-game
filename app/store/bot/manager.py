@@ -1,9 +1,11 @@
 import typing
 
 from app.store.tg_api.models import (
-    MessageDTO,
     Update,
 )
+
+from .command_hendler import CommandHandler
+from .dispatcher import CommandDispatcher
 
 if typing.TYPE_CHECKING:
     from app.web.app import Application
@@ -12,18 +14,23 @@ if typing.TYPE_CHECKING:
 class BotManager:
     def __init__(self, app: "Application"):
         self.app = app
+        self.dispatcher = CommandDispatcher()
+        self.comand_handler = CommandHandler(app)
+        self._register_commands()
 
+    def _register_commands(self):
+        self.dispatcher.register_command(
+            "/start", self.comand_handler.start_command
+            )
+        self.dispatcher.register_command(
+            "/add", self.comand_handler.add_user
+            )
+        
     async def handle_updates(self, updates: list[Update]):
         """Обрабатывает список обновлений, полученных от TG API."""
         for update in updates:
             if update.message.text:
                 message = update.message
-                chat_id = message.chat.id
-                incoming_message_text = message.text
-
-                if incoming_message_text.strip():
-                    response_message_text = incoming_message_text
-                    message = MessageDTO(
-                        chat_id=chat_id, text=response_message_text
-                    )
-                    await self.app.store.tg_api.send_message(message)
+                if message.text.strip():
+                    await self.dispatcher.handle_command(message.text, message)
+                    # await self.app.store.tg_api.send_message(message)

@@ -49,6 +49,6 @@ class Update:
 
 
 @dataclass
-class MessageDTO:
+class SendMessage:
     chat_id: str
     text: str

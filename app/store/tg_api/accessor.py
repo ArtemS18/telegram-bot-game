@@ -6,7 +6,7 @@ from aiohttp import ClientSession
 
 from app.base.base_accessor import BaseAccessor
 
-from .models import MessageDTO, Update
+from .models import SendMessage, Update
 from .poller import Poller
 from .schema import UpdateSchema
 
@@ -20,20 +20,20 @@ API_URL = "https://api.telegram.org/bot"
 
 
 class TgApiAccessor(BaseAccessor):
-    def __init__(self, app: "Application", *args, **kwargs):
+    def __init__(self, app: "Application", *args, **kwargs) -> None:
         super().__init__(app, *args, **kwargs)
         self.session: ClientSession | None = None
         self.poller: Poller | None = None
         self.offset: int = 0
         self.update_schema = UpdateSchema()
 
-    async def connect(self, app: "Application"):
+    async def connect(self, app: "Application") -> None:
         self.session = ClientSession()
         self.poller = Poller(self.app.store)
         await self.poller.start()
         logger.info("Start polling")
 
-    async def disconnect(self, app: "Application"):
+    async def disconnect(self, app: "Application") -> None:
         if self.poller.is_running():
             await self.poller.stop()
 
@@ -42,7 +42,7 @@ class TgApiAccessor(BaseAccessor):
         url = f"{host}{token}/"
         return f"{urljoin(url, method)}?{urlencode(params)}"
 
-    async def send_message(self, message: MessageDTO):
+    async def send_message(self, message: SendMessage) -> None:
         async with self.session.post(
             self._build_query(
                 host=API_URL,
@@ -54,7 +54,7 @@ class TgApiAccessor(BaseAccessor):
             data = await response.json()
             logger.info(data)
 
-    async def poll(self):
+    async def long_poll(self) -> None:
         async with self.session.get(
             self._build_query(
                 host=API_URL,
@@ -71,6 +71,5 @@ class TgApiAccessor(BaseAccessor):
                     self.offset = result["update_id"] + 1
                     update = self.update_schema.load(result)
                     logger.info(data)
-                    logger.info(update)
                     updates.append(update)
                 await self.app.store.bot_manager.handle_updates(updates)

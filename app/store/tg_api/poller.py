@@ -26,7 +26,7 @@ class Poller:
     async def poll(self) -> None:
         try:
             while self.is_running:
-                await self.store.tg_api.poll()
+                await self.store.tg_api.long_poll()
                 await asyncio.sleep(1)
         except Exception as e:
             logger.error(e)
