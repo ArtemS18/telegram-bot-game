@@ -1,3 +1,4 @@
+import json
 import logging
 import typing
 from urllib.parse import urlencode, urljoin
@@ -6,9 +7,9 @@ from aiohttp import ClientSession
 
 from app.base.base_accessor import BaseAccessor
 
-from .models import SendMessage, Update
+from .models import EditMessageText, SendMessage, Update
 from .poller import Poller
-from .schema import UpdateSchema
+from .schema import InlineKeyboardMarkupSchema, UpdateSchema
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class TgApiAccessor(BaseAccessor):
         self.poller: Poller | None = None
         self.offset: int = 0
         self.update_schema = UpdateSchema()
+        self.keyboard_schema = InlineKeyboardMarkupSchema()
 
     async def connect(self, app: "Application") -> None:
         self.session = ClientSession()
@@ -38,17 +40,49 @@ class TgApiAccessor(BaseAccessor):
             await self.poller.stop()
 
     @staticmethod
+    def _get_params() -> dict:
+        pass
+
+
+    @staticmethod
     def _build_query(host: str, token: str, method: str, params: dict) -> str:
         url = f"{host}{token}/"
         return f"{urljoin(url, method)}?{urlencode(params)}"
 
     async def send_message(self, message: SendMessage) -> None:
+        params = {
+            "chat_id": message.chat_id,
+            "text": message.text,}
+        
+        if message.reply_markup is not None:
+            params["reply_markup"] = json.dumps(self.keyboard_schema.dump(message.reply_markup))
+
         async with self.session.post(
             self._build_query(
                 host=API_URL,
                 token=self.app.config.bot.token,
                 method="sendMessage",
-                params={"chat_id": message.chat_id, "text": message.text},
+                params=params
+            )
+        ) as response:
+            data = await response.json()
+            logger.info(data)
+
+    async def edit_message(self, message: EditMessageText) -> None:
+        params = {
+            "chat_id": message.chat_id,
+            "text": message.text,
+            "message_id": message.message_id}
+        
+        if message.reply_markup is not None:
+            params["reply_markup"] = json.dumps(self.keyboard_schema.dump(message.reply_markup))
+
+        async with self.session.post(
+            self._build_query(
+                host=API_URL,
+                token=self.app.config.bot.token,
+                method="editMessageText",
+                params=params
             )
         ) as response:
             data = await response.json()
@@ -65,11 +99,12 @@ class TgApiAccessor(BaseAccessor):
         ) as response:
             data = await response.json()
             results = data.get("result", [])
-            updates: Update = []
+            updates: list[Update] = []
             if results:
                 for result in results:
+                    logger.info(results)
                     self.offset = result["update_id"] + 1
-                    update = self.update_schema.load(result)
-                    logger.info(data)
+                    update: Update = self.update_schema.load(result)
+                    update.type_query = list(result.keys())[1]
                     updates.append(update)
                 await self.app.store.bot_manager.handle_updates(updates)

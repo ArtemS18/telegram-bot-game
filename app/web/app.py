@@ -13,6 +13,7 @@ class Application(AiohttpApplication):
     config = None
     store = None
     database = None
+    log = None
 
 
 app = Application()
