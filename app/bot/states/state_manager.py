@@ -1,9 +1,6 @@
-from dataclasses import dataclass
 import logging
 
-@dataclass
-class State:
-    name: str|None = None
+from .models import State
 
 class FSM:
     _instance = None

@@ -33,7 +33,7 @@ class TgApiAccessor(BaseAccessor):
         self.session = ClientSession()
         self.poller = Poller(self.app.store)
         await self.poller.start()
-        logger.info("Start polling")
+        self.app.log.info("Start polling")
 
     async def disconnect(self, app: "Application") -> None:
         if self.poller.is_running():
@@ -42,7 +42,6 @@ class TgApiAccessor(BaseAccessor):
     @staticmethod
     def _get_params() -> dict:
         pass
-
 
     @staticmethod
     def _build_query(host: str, token: str, method: str, params: dict) -> str:
@@ -66,7 +65,7 @@ class TgApiAccessor(BaseAccessor):
             )
         ) as response:
             data = await response.json()
-            logger.info(data)
+            # logger.info(data)
 
     async def edit_message(self, message: EditMessageText) -> None:
         params = {
@@ -102,9 +101,9 @@ class TgApiAccessor(BaseAccessor):
             updates: list[Update] = []
             if results:
                 for result in results:
-                    logger.info(results)
+                    # logger.info(results)
                     self.offset = result["update_id"] + 1
                     update: Update = self.update_schema.load(result)
                     update.type_query = list(result.keys())[1]
                     updates.append(update)
-                await self.app.store.bot_manager.handle_updates(updates)
+                await self.app.bot.manager.handle_updates(updates)

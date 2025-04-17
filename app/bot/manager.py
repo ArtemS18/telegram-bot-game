@@ -4,10 +4,6 @@ from app.store.tg_api.models import (
     Update,
 )
 
-from .command_hendler import CommandHandler
-from .router import Router
-from .models.state_manager import FSM, State
-
 if typing.TYPE_CHECKING:
     from app.web.app import Application
 
@@ -15,16 +11,19 @@ if typing.TYPE_CHECKING:
 class BotManager:
     def __init__(self, app: "Application"):
         self.app = app
-        self.router = Router()
-        self.fsm = FSM()
+        self.router = app.bot.router
+        self.fsm = app.bot.fsm
+
+        self.handler = self.app.bot.handlers
+        self.states = self.app.bot.states
+
         self._register_routes()
 
     def _register_routes(self):
-        handler = CommandHandler(self.app)
-        self.router.register(command="/start")(handler.start_command)
-        self.router.register(command="/join", state=State("START"))(handler.add_user)
+        self.router.register("/start")( self.handler.command.start_command)
+        self.router.register("/create_game", self.states.creation_game)(self.handler.command.creation_game)
 
-        self.router.callback_register(data = "start_game", state=State("START"))(handler.query)
+        self.router.callback_register("join", self.states.add_users)(self.handler.callback.add_user)
 
     async def handle_updates(self, updates: list[Update]):
         """Обрабатывает список обновлений, полученных от TG API."""
@@ -43,3 +42,6 @@ class BotManager:
             current_state = self.fsm.get_state(chat_id)
 
             await self.router.handle(update.type_query, command, current_state, *args)
+
+def setup_manager(app: "Application"):
+    app.bot.manager = BotManager(app)

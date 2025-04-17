@@ -1,8 +1,7 @@
 import logging
 from collections import defaultdict
 from collections.abc import Callable
-from .models.state_manager import State
-
+from .states.models import State
 
 class Router:
     def __init__(self):

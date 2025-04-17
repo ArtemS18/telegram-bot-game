@@ -4,7 +4,6 @@ from app.store.tg_api.models import (
 )
 
 buttons_start = [
-            [InlineKeyboardButton(text="Начать игру", callback_data="start_game")],
-            [InlineKeyboardButton(text="Помощь", callback_data="help")],
+            [InlineKeyboardButton(text="Присоединиться", callback_data="join")],
         ]
 keyboard_start = InlineKeyboardMarkup(inline_keyboard=buttons_start)

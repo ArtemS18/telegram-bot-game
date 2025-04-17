@@ -8,11 +8,13 @@ class Store:
     def __init__(self, app: "Application"):
         self.app = app
 
-        from app.bot.manager import BotManager
         from app.store.tg_api.accessor import TgApiAccessor
+        from app.store.database.accessor import DatabaseAccessor
+        from app.store.game.accessor import GameAccessor
 
         self.tg_api = TgApiAccessor(app)
-        self.bot_manager = BotManager(app)
+        self.database = DatabaseAccessor(app)
+        self.game = GameAccessor(app)
 
 
 def setup_store(app: "Application") -> None:

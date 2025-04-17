@@ -1,6 +1,7 @@
 from aiohttp.web import Application as AiohttpApplication
 
 from app.store.store import setup_store
+from app.bot.bot import setup_bot
 
 from .config import setup_config
 from .logger import setup_logging
@@ -14,6 +15,7 @@ class Application(AiohttpApplication):
     store = None
     database = None
     log = None
+    bot = None
 
 
 app = Application()
@@ -24,4 +26,6 @@ def setup_app(config_path: str) -> Application:
     setup_logging(app)
     setup_routes(app)
     setup_store(app)
+    app.store.game.create_tables()
+    setup_bot(app)
     return app
