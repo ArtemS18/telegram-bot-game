@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 
 @dataclass
@@ -12,8 +12,8 @@ class User:
 
 @dataclass
 class Chat:
-    id: int 
-    bot_state: str 
+    id: int
+    bot_state: str
 
 
 @dataclass
@@ -23,8 +23,8 @@ class Game:
     score_gamers: int = 0
     score_bot: int = 0
     round: int = 0
-    status: Literal['in_progress', 'end'] = 'in_progress'
-    winner: Literal['users', 'bot', 'not_defined'] = 'not_defined'
+    status: Literal["in_progress", "end"] = "in_progress"
+    winner: Literal["users", "bot", "not_defined"] = "not_defined"
 
 
 @dataclass
@@ -32,7 +32,7 @@ class GameUser:
     id: int
     game_id: int
     user_id: int
-    game_role: Literal['player', 'capitan']
+    game_role: Literal["player", "capitan"]
 
 
 @dataclass
@@ -47,5 +47,5 @@ class Question:
 class GameQuestion:
     id: int
     question_id: int
-    status: Literal['in_progress', 'correct_answer', 'wrong_answer']
+    status: Literal["in_progress", "correct_answer", "wrong_answer"]
     answering_player: int

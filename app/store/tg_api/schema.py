@@ -76,7 +76,7 @@ class InlineKeyboardButtonSchema(Schema):
     text = fields.Str(required=True)
     # url = fields.Str(allow_none=True, missing=None)
     callback_data = fields.Str(allow_none=True)
-    
+
     @post_load
     def make_inline_keyboard_button(self, data, **kwargs):
         return InlineKeyboardButton(**data)
@@ -84,8 +84,9 @@ class InlineKeyboardButtonSchema(Schema):
 
 class InlineKeyboardMarkupSchema(Schema):
     inline_keyboard = fields.List(
-        fields.List(fields.Nested(InlineKeyboardButtonSchema)), required=True)
-    
+        fields.List(fields.Nested(InlineKeyboardButtonSchema)), required=True
+    )
+
     @post_load
     def make_inline_keyboard_markup(self, data, **kwargs):
         return InlineKeyboardMarkup(**data)

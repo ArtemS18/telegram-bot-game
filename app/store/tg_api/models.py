@@ -39,7 +39,7 @@ class CallbackQuery:
     from_user: User
     data: str
     message: Message | None = None
-    
+
 
 @dataclass
 class Update:
@@ -48,6 +48,7 @@ class Update:
     message: Message | None = None
     inline_query: InlineQuery | None = None
     callback_query: CallbackQuery | None = None
+
 
 @dataclass
 class InlineKeyboardButton:
@@ -68,7 +69,7 @@ class SendMessage:
     reply_markup: InlineKeyboardMarkup | None = None
 
 
-@dataclass 
+@dataclass
 class EditMessageText:
     chat_id: int
     message_id: int

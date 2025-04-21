@@ -1,7 +1,7 @@
 from aiohttp.web import Application as AiohttpApplication
 
-from app.store.store import setup_store
 from app.bot.bot import setup_bot
+from app.store.store import setup_store
 
 from .config import setup_config
 from .logger import setup_logging

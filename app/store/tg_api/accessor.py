@@ -49,43 +49,68 @@ class TgApiAccessor(BaseAccessor):
         return f"{urljoin(url, method)}?{urlencode(params)}"
 
     async def send_message(self, message: SendMessage) -> None:
-        params = {
-            "chat_id": message.chat_id,
-            "text": message.text,}
-        
+        params = {"chat_id": message.chat_id, "text": message.text}
+
         if message.reply_markup is not None:
-            params["reply_markup"] = json.dumps(self.keyboard_schema.dump(message.reply_markup))
+            params["reply_markup"] = json.dumps(
+                self.keyboard_schema.dump(message.reply_markup)
+            )
 
         async with self.session.post(
             self._build_query(
                 host=API_URL,
                 token=self.app.config.bot.token,
                 method="sendMessage",
-                params=params
+                params=params,
             )
         ) as response:
-            data = await response.json()
+            await response.json()
+            # data = await response.json()
             # logger.info(data)
 
     async def edit_message(self, message: EditMessageText) -> None:
         params = {
             "chat_id": message.chat_id,
             "text": message.text,
-            "message_id": message.message_id}
-        
+            "message_id": message.message_id,
+        }
+
         if message.reply_markup is not None:
-            params["reply_markup"] = json.dumps(self.keyboard_schema.dump(message.reply_markup))
+            params["reply_markup"] = json.dumps(
+                self.keyboard_schema.dump(message.reply_markup)
+            )
 
         async with self.session.post(
             self._build_query(
                 host=API_URL,
                 token=self.app.config.bot.token,
                 method="editMessageText",
-                params=params
+                params=params,
             )
         ) as response:
             data = await response.json()
             logger.info(data)
+
+    async def get_long_poll(self) -> None:
+        async with self.session.get(
+            self._build_query(
+                host=API_URL,
+                token=self.app.config.bot.token,
+                method="getUpdates",
+                params={"offset": self.offset, "timeout": 10},
+            )
+        ) as response:
+            data = await response.json()
+            results = data.get("result", [])
+            updates: list[Update] = []
+            if results:
+                for result in results:
+                    # logger.info(results)
+                    self.offset = result["update_id"] + 1
+                    update: Update = self.update_schema.load(result)
+                    update.type_query = list(result.keys())[1]
+                    updates.append(update)
+                return update
 
     async def long_poll(self) -> None:
         async with self.session.get(

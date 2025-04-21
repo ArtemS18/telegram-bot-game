@@ -1,10 +1,10 @@
 import typing
 
-from app.store.tg_api.models import (
-    Update,
-)
+from app.store.tg_api.models import Update
 
 if typing.TYPE_CHECKING:
+    from app.bot.states.models import BotStates
+    from app.bot.states.state_manager import FSM
     from app.web.app import Application
 
 
@@ -12,24 +12,43 @@ class BotManager:
     def __init__(self, app: "Application"):
         self.app = app
         self.router = app.bot.router
-        self.fsm = app.bot.fsm
-
+        self.fsm: "FSM" = app.bot.fsm
+        self.middleware = app.bot.middleware
         self.handler = self.app.bot.handlers
-        self.states = self.app.bot.states
+        self.states: "BotStates" = self.app.bot.states
 
         self._register_routes()
 
     def _register_routes(self):
-        self.router.register("/start")( self.handler.command.start_command)
-        self.router.register("/create_game", self.states.creation_game)(self.handler.command.creation_game)
+        self.router.register("/start")(self.handler.command.start_command)
+        self.router.register("/create_game", self.states.creation_game)(
+            self.handler.command.creation_game
+        )
+        self.router.register(None, self.states.question_active)(
+            self.handler.command.creation_game
+        )
+        self.router.register("/answer", self.states.check_answer)(
+            lambda message: self.middleware.auth.captain_only_middleware(
+                self.handler.command.answer_command, message=message
+            )
+        )
 
-        self.router.callback_register("join", self.states.add_users)(self.handler.callback.add_user)
+        self.router.callback_register("join", self.states.add_users)(
+            self.handler.callback.add_user
+        )
+        self.router.callback_register("select", self.states.select_capitan)(
+            self.handler.callback.select_capitan
+        )
+        self.router.callback_register("start", self.states.start_game)(
+            lambda callback: self.middleware.auth.captain_only_middleware(
+                self.handler.callback.start_game, callback=callback
+            )
+        )
 
     async def handle_updates(self, updates: list[Update]):
-        """Обрабатывает список обновлений, полученных от TG API."""
-        for update in updates:
-            if update.type_query == "message":
-                command = update.message.text.strip()
+        for index, update in enumerate(updates):
+            if update.type_query == "message" and update.message.text:
+                command = update.message.text.strip().split()[0]
                 chat_id = update.message.chat.id
                 args = (update.message,)
             elif update.type_query == "callback_query":
@@ -41,7 +60,11 @@ class BotManager:
 
             current_state = self.fsm.get_state(chat_id)
 
-            await self.router.handle(update.type_query, command, current_state, *args)
+            if command and update.type_query:
+                await self.router.handle(
+                    update.type_query, command, current_state, *args
+                )
+
 
 def setup_manager(app: "Application"):
     app.bot.manager = BotManager(app)
