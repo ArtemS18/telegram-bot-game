@@ -28,7 +28,7 @@ class DatabaseAccessor(BaseAccessor):
                 host="localhost",
                 database="game"
             ),
-            echo=True
+            # echo=True
         )
         self.session = async_sessionmaker(self.engine, expire_on_commit=False)
         self.app.log.info("Connected '%s'", self.__class__.__name__)

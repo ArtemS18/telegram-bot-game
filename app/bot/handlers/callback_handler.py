@@ -19,18 +19,17 @@ class CallbackHandler:
         self.db = app.store.game
 
     async def add_user(self, callback: CallbackQuery):
-        last_text = callback.message.text
-        if await self.db.get_user_by_id(callback.from_user.id):
-            return None
-        await self.db.create_user(callback.from_user.id)
-        new_text = f"{last_text} \n @{callback.from_user.username}"
-        edit = EditMessageText(
-            chat_id=callback.message.chat.id, 
-            message_id=callback.message.message_id,
-            text=new_text,
-            reply_markup=kb.keyboard_start
-        )
-        await self.telegram.edit_message(edit)
+        print("_____",callback.message)
+        if not await self.db.add_user_to_game(callback.message.from_user.id, callback.message.chat.id):
+            last_text = callback.message.text
+            new_text = f"{last_text} \n @{callback.message.from_user.username}"
+            edit = EditMessageText(
+                chat_id=callback.message.chat.id, 
+                message_id=callback.message.message_id,
+                text=new_text,
+                reply_markup=kb.keyboard_start
+            )
+            await self.telegram.edit_message(edit)
         # self.fsm.set_state(callback.message.chat.id, State())
 
     

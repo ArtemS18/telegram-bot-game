@@ -36,7 +36,7 @@ class TgApiAccessor(BaseAccessor):
         self.app.log.info("Start polling")
 
     async def disconnect(self, app: "Application") -> None:
-        if self.poller.is_running():
+        if self.poller.is_running:
             await self.poller.stop()
 
     @staticmethod

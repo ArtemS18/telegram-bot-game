@@ -26,6 +26,5 @@ def setup_app(config_path: str) -> Application:
     setup_logging(app)
     setup_routes(app)
     setup_store(app)
-    app.store.game.create_tables()
     setup_bot(app)
     return app
