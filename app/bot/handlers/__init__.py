@@ -1,5 +1,9 @@
 import typing
 
+from .callback import CallbackHandler
+from .command import CommandHandler
+from .game import GameHandler
+
 if typing.TYPE_CHECKING:
     from app.web.app import Application
 
@@ -7,11 +11,6 @@ if typing.TYPE_CHECKING:
 class Handler:
     def __init__(self, app: "Application"):
         self.app = app
-
-        from .callback_handler import CallbackHandler
-        from .command_handler import CommandHandler
-        from .game_handler import GameHandler
-
         self.command = CommandHandler(app)
         self.callback = CallbackHandler(app)
         self.game = GameHandler(app)

@@ -9,7 +9,10 @@ class Router:
     def __init__(self):
         self.handlers = defaultdict(lambda: defaultdict(dict))
 
-    def register(self, command: str | None = None, state: State = State()):
+    def register(
+            self, command: str | None = None, 
+            state: State = State()
+            ):
         def decorator(handler: Callable):
             self.handlers["message"][state.name][command] = handler
             return handler
@@ -24,13 +27,13 @@ class Router:
         return decorator
 
     async def handle(
-        self,
-        command_type: str,
-        command: str | None = None,
-        state: State = State(),
-        *args,
-        **kwargs
-    ):
+                self,
+                command_type: str,
+                command: str | None = None,
+                state: State = State(),
+                *args,
+                **kwargs
+                    ):
         handler = self.handlers.get(command_type, {}).get(state.name, {}).get(command)
         logging.info("Команда: %s, Состояние: %s", command, state.name)
         if handler:

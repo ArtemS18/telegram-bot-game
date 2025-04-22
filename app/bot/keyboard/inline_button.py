@@ -16,9 +16,20 @@ keyboard_start = InlineKeyboardMarkup(
 
 keyboard_select = InlineKeyboardMarkup(
     [
-        # [InlineKeyboardButton(text="Присоединиться", callback_data="join")]
         [InlineKeyboardButton(
             text="Выбрать капитана",
             callback_data="select")],
     ]
 )
+
+keyboard_next = InlineKeyboardMarkup(
+    [
+        [InlineKeyboardButton(
+            text="Продолжить играть",
+            callback_data="next")],
+        [InlineKeyboardButton(
+            text="Выйти из игры",
+            callback_data="quite")],
+    ]
+)
+

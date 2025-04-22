@@ -20,7 +20,10 @@ class BotManager:
         self._register_routes()
 
     def _register_routes(self):
-        self.router.register("/start")(self.handler.command.start_command)
+        #message routers
+        self.router.register("/start")(
+            self.handler.command.start_command
+        )
         self.router.register("/create_game", self.states.creation_game)(
             self.handler.command.creation_game
         )
@@ -32,7 +35,7 @@ class BotManager:
                 self.handler.command.answer_command, message=message
             )
         )
-
+        #callback routers
         self.router.callback_register("join", self.states.add_users)(
             self.handler.callback.add_user
         )
@@ -42,6 +45,16 @@ class BotManager:
         self.router.callback_register("start", self.states.start_game)(
             lambda callback: self.middleware.auth.captain_only_middleware(
                 self.handler.callback.start_game, callback=callback
+            )
+        )
+        self.router.callback_register("next", self.states.finish)(
+            lambda callback: self.middleware.auth.captain_only_middleware(
+                self.handler.callback.start_game_with_same_team, callback=callback
+            )
+        )
+        self.router.callback_register("quite", self.states.finish)(
+            lambda callback: self.middleware.auth.player_only_middleware(
+                self.handler.callback.quite_game, callback=callback
             )
         )
 
