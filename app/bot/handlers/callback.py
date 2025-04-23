@@ -162,14 +162,13 @@ class CallbackHandler:
         )
     async def answering_player(self, callback: CallbackQuery) -> None:
         game = await self.db.get_game_by_chat_id(callback.message.chat.id)
-        user_id = callback.data.split('_')[1]
-        print(user_id)
-        aswering = self.db.get_gameuser_by_user_and_game(game.id, user_id)
-        self.db.update_gamequestion_answering_player(game.id, user_id, aswering)
+        user_id = int(callback.data.split('_')[1].strip())
+        aswering = await self.db.get_gameuser_by_user_and_game(game.id, user_id)
+        await self.db.update_gamequestion_answering_player(game.id, user_id, aswering.id)
         await self.telegram.send_message(
             SendMessage(
                 chat_id=callback.message.chat.id,
-                text="Этот игоро теперь овечает",
+                text="Этот игорок теперь овечает командой /answer",
             )
         )
 

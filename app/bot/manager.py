@@ -34,7 +34,7 @@ class BotManager:
             self.handler.command.creation_game
         )
         self.router.register("/answer", self.states.check_answer)(
-            lambda message: self.middleware.auth.captain_only_middleware(
+            lambda message: self.middleware.auth.answering_only_middleware(
                 self.handler.command.answer_command, message=message
             )
         )

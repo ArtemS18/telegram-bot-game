@@ -94,3 +94,40 @@ class AuthMiddleware:
             return
 
         await handler(*args, **kwargs)
+
+    async def answering_only_middleware(self, handler, *args, **kwargs):
+        obj = kwargs.get("callback") or kwargs.get("message")
+        if not obj:
+            return
+
+        user_id = getattr(obj.from_user, "id", None)
+        chat_id = (
+            getattr(getattr(obj, "message", obj), "chat", None).id
+            if hasattr(obj, "message")
+            else obj.chat.id
+        )
+
+        if not user_id or not chat_id:
+            return
+
+        game = await self.db.get_game_by_chat_id(chat_id)
+        if not game:
+            await self.telegram.send_message(
+                SendMessage(
+                    chat_id=chat_id,
+                    text="Игра не найдена. Создайте игру перед началом.",
+                )
+            )
+            return
+
+        gameuser = await self.db.get_gameuser_by_user_and_game(game.id, user_id)
+        current_question = await self.db.get_current_gamequestion(chat_id)
+        if gameuser.id != current_question.answering_player:
+            await self.telegram.send_message(
+                SendMessage(
+                    chat_id=chat_id,
+                    text="Вы не можете отвечать.",
+                )
+            )
+            return
+        await handler(*args, **kwargs)

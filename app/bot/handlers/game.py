@@ -28,17 +28,20 @@ class GameHandler:
     async def start_game_round(self, chat_id: int) -> None:
         game: Game = await self.db.get_game_by_chat_id(chat_id)
         capitan = await self.db.get_capitan_by_game_id(game.id)
+        game.round+=1
+        await self.db.update_game(game.id, round=game.round)
 
         await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text=f"Раунд №{game.round + 1} начался! Внимание, вопрос:"
+                text=f"Раунд №{game.round} начался! Внимание, вопрос:"
             )
         )
 
         await asyncio.sleep(3)
 
         question = await self.db.get_random_question(chat_id)
+        
         if not question:
             await self.end_game(
                 SendMessage(
@@ -67,17 +70,18 @@ class GameHandler:
                 response = "✅ Правильно! Вы дали верный ответ."
                 game.score_gamers += 1
                 game_question.status = QuestionStatus.correct_answer
+                await self.db.update_game(game.id, score_gamers=game.score_gamers)
             else:
                 response = f"❌ Неправильно!\nПравильный ответ: {question.answer_text}"
                 game.score_bot += 1
+                await self.db.update_game(game.id, score_gamers=game.score_gamers)
                 game_question.status = QuestionStatus.wrong_answer
         except asyncio.TimeoutError:
             response = f"⏰ Время вышло! Правильный ответ: {question.answer_text}"
             game.score_bot += 1
+            await self.db.update_game(game.id, score_gamers=game.score_gamers)
             game_question.status = QuestionStatus.wrong_answer
         finally:
-            game.round += 1
-            await self.db.update_object(game)
             await self.db.update_object(game_question)
 
         await self.telegram.send_message(

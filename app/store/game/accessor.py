@@ -4,7 +4,7 @@ from sqlalchemy import func, insert, select, update
 
 from app.base.base_accessor import BaseAccessor
 from app.base.base_sqlalchemy import BaseModel
-from app.game.models.enums import GameRole, GameStatus
+from app.game.models.enums import GameRole, GameStatus, QuestionStatus
 from app.game.models.play import Chat, Game, GameQuestion, GameUser, Question, User
 
 if typing.TYPE_CHECKING:
@@ -282,8 +282,25 @@ class GameAccessor(BaseAccessor):
         game = await self.get_game_by_chat_id(chat_id)
         select_request = (
             select(Question)
-            .join(Game, Game.current_question_id == Question.id)
-            .where(Game.id == game.id)
+            .join(GameQuestion, GameQuestion.question_id == Question.id)
+            .join(Game, Game.id==GameQuestion.game_id)
+            .where((Game.id == game.id) & GameQuestion.status == QuestionStatus.in_progress )
+            .order_by(GameQuestion.id)
+            .limit(1)
+        )
+        async with self.app.store.database.session() as session:
+            res = await session.execute(select_request)
+            question = res.scalars().one_or_none()
+            return question
+        
+    async def get_current_gamequestion(self, chat_id: int) -> GameQuestion | None:
+        game = await self.get_game_by_chat_id(chat_id)
+        select_request = (
+            select(GameQuestion)
+            .join(Game, Game.id==GameQuestion.game_id)
+            .where((Game.id == game.id) & (GameQuestion.status == QuestionStatus.in_progress) )
+            .order_by(GameQuestion.id)
+            .limit(1)
         )
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
@@ -317,23 +334,43 @@ class GameAccessor(BaseAccessor):
             await session.commit()
             return result.scalar_one_or_none()
     
+
     async def update_gamequestion_answering_player(
-        self, game_id: int, user_id: int, new_answering_player: int
-    ) -> GameQuestion | None:
-        update_request = (
-            update(GameQuestion)
-            .join(GameUser, GameUser.game_id == GameQuestion.game_id)
-            .where(
-                (GameUser.game_id == game_id) &
-                (GameUser.user_id == user_id) &
-                (GameQuestion.game_id == game_id))
-            .values(answering_player=new_answering_player)
-            .returning(GameQuestion).limit(1)
-        )
+            self, game_id: int, user_id: int, new_answering_player: int
+        ) -> GameQuestion | None:
+        """
+        Обновляет answering_player для вопроса в игре.
+        """
+        print(new_answering_player)
         async with self.app.store.database.session() as session:
-            result = await session.execute(update_request)
-            await session.commit()
-            return result.scalar_one_or_none()
+            # 1. Получаем объект GameQuestion, который нужно обновить
+            select_stmt = (
+                select(GameQuestion)
+                .join(GameUser, GameUser.game_id == GameQuestion.game_id)
+                .where(
+                    (GameUser.game_id == game_id) &
+                    (GameUser.user_id == user_id) &
+                    (GameQuestion.game_id == game_id)
+                )
+                .limit(1)
+            )
+
+            result = await session.execute(select_stmt)
+            game_question = result.scalar_one_or_none()
+
+            # 2. Обновляем объект, если он найден
+            if game_question:
+                print(game_question.answering_player)
+                #game_question.answering_player = new_answering_player # ОШИБКА! Присваивается объект GameUser
+                game_question.answering_player = new_answering_player  # Теперь присваиваем ID пользователя
+                await session.merge(game_question) 
+                await session.commit()  # Обновляем объект из БД после коммита
+                return game_question
+            else:
+                return None  # Если GameQuestion не найден
+
+
+
 
     async def update_game(self, game_id: int, **fields) -> Game | None:
         if not fields:
