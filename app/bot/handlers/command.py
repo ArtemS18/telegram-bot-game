@@ -55,8 +55,8 @@ class CommandHandler:
             return
 
         text = (
-            f"✨ Игра создана @{message.from_user.username}!\n"
-            f"Список участников:\n1) @{message.from_user.username} (Ты!)"
+            f"✨ Игра создана @{message.from_user.username}! Необходимо набрать 3 участника для начала игры\n"
+            f"Список участников:\n1) @{message.from_user.username} (Создатель)"
         )
 
         await self.db.add_user_to_game(
@@ -73,45 +73,21 @@ class CommandHandler:
         await self.telegram.send_message(answer)
         self.fsm.set_state(message.chat.id, self.states.add_users)
 
-    async def get_answer(self, message: Message) -> None:
-        chat_id = message.chat.id
-
-        game = await self.db.get_game_by_chat_id(chat_id)
-        gameusers = await self.db.get_all_users_in_game(game.id)
-        buttons = []
-        for idx, gameuser in enumerate(gameusers):
-            user = await self.db.get_user_by_id(gameuser.user_id)
-            button = InlineKeyboardButton(
-                text=f"{idx+1}. @{user.username}",
-                callback_data=f"user_{user.id}"
-            )
-            buttons.append([button])
-
-        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
-
-        await self.telegram.send_message(
-            SendMessage(
-                chat_id=chat_id,
-                text="Выберите пользователя из команды:",
-                reply_markup=keyboard
-            )
-        )
-
 
     async def answer_command(self, message: Message) -> None:
         chat_id = message.chat.id
         text = message.text
 
-        if not text or len(text.split()) < 2:
+        if not text:
             await self.telegram.send_message(
                 SendMessage(
                     chat_id=chat_id,
-                    text="❌ Введите свой ответ после команды! Например: `/answer Луна`"
+                    text="Отвечайте господин Друзь!"
                 )
             )
             return
 
-        answer_text = text[len("/answer") :].strip()
+        answer_text = text.strip()
 
         await self.answer_queues[chat_id].put(
             Answer(

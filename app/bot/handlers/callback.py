@@ -4,7 +4,7 @@ import typing
 from app.bot.keyboard import inline_button as kb
 from app.bot.states.models import State
 from app.game.models.play import User
-from app.store.tg_api.models import CallbackQuery, EditMessageText, SendMessage
+from app.store.tg_api.models import CallbackQuery, EditMessageText, InlineKeyboardButton, InlineKeyboardMarkup, SendMessage
 
 if typing.TYPE_CHECKING:
     from app.bot.states.models import BotStates
@@ -24,18 +24,6 @@ class CallbackHandler:
         chat_id = callback.message.chat.id
         count = await self.db.get_count_users_in_game(chat_id)
 
-        if count > 4:
-            new_text = f"{callback.message.text}\n Можно выбрать капитана и начать игру!"
-            edit = EditMessageText(
-                chat_id=chat_id,
-                message_id=callback.message.message_id,
-                text=new_text,
-                reply_markup=kb.keyboard_select,
-            )
-            self.fsm.set_state(chat_id, self.states.select_capitan)
-            await self.telegram.edit_message(edit)
-            return
-
         added = await self.db.add_user_to_game(
             User(
                 id=callback.from_user.id,
@@ -45,7 +33,7 @@ class CallbackHandler:
         )
 
         if not added:
-            count = await self.db.get_count_users_in_game(chat_id)
+            count+=1
             new_text = f"{callback.message.text}\n{count}) @{callback.from_user.username}"
             edit = EditMessageText(
                 chat_id=chat_id,
@@ -54,6 +42,17 @@ class CallbackHandler:
                 reply_markup=kb.keyboard_add,
             )
             await self.telegram.edit_message(edit)
+            if count >= 3:
+                new_text = f"{new_text}\n Можно выбрать капитана и начать игру!"
+                edit = EditMessageText(
+                    chat_id=chat_id,
+                    message_id=callback.message.message_id,
+                    text=new_text,
+                    reply_markup=kb.keyboard_select,
+                )
+                self.fsm.set_state(chat_id, self.states.select_capitan)
+                await self.telegram.edit_message(edit)
+                return
         else:
             await self.telegram.send_message(
                 SendMessage(
@@ -168,7 +167,32 @@ class CallbackHandler:
         await self.telegram.send_message(
             SendMessage(
                 chat_id=callback.message.chat.id,
-                text="Этот игорок теперь овечает командой /answer",
+                text="Теперь этот игорок отвечает своим следующим сообщением!",
             )
         )
+
+    async def get_answer(self, callback: CallbackQuery) -> None:
+        chat_id = callback.message.chat.id
+        print(1111)
+        game = await self.db.get_game_by_chat_id(chat_id)
+        gameusers = await self.db.get_all_users_in_game(game.id)
+        buttons = []
+        for idx, gameuser in enumerate(gameusers):
+            user = await self.db.get_user_by_id(gameuser.user_id)
+            button = InlineKeyboardButton(
+                text=f"{idx+1}. @{user.username}",
+                callback_data=f"user_{user.id}"
+            )
+            buttons.append([button])
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+        m = await self.telegram.send_message(
+            SendMessage(
+                chat_id=chat_id,
+                text="Капитан может выбрать пользователя.",
+                reply_markup=keyboard
+            )
+        )
+        print(m)
 

@@ -5,7 +5,7 @@ from app.bot.keyboard import inline_button as kb
 from app.bot.models.dataclasses import Answer
 from app.game.models.enums import GameRole, GameStatus, QuestionStatus, WinnerType
 from app.game.models.play import Game
-from app.store.tg_api.models import Message, SendMessage
+from app.store.tg_api.models import EditMessageText, Message, SendMessage
 
 if typing.TYPE_CHECKING:
     from app.bot.states.models import BotStates
@@ -28,19 +28,22 @@ class GameHandler:
     async def start_game_round(self, chat_id: int) -> None:
         game: Game = await self.db.get_game_by_chat_id(chat_id)
         capitan = await self.db.get_capitan_by_game_id(game.id)
-        game.round+=1
-        await self.db.update_game(game.id, round=game.round)
-
-        await self.telegram.send_message(
+        message = await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text=f"Раунд №{game.round} начался! Внимание, вопрос:"
+                text=f"Раунд №{game.round+1} начался! Внимание, вопрос:"
             )
         )
 
         await asyncio.sleep(3)
+        question = await self.db.get_current_question(chat_id)
+        if not question:
+            question = await self.db.get_random_question(chat_id)
+            game_question = await self.db.create_gamequestion_by_chat_id(chat_id, question.id, capitan.id)
+            game.round+=1
+            await self.db.update_game(game.id, round=game.round)
 
-        question = await self.db.get_random_question(chat_id)
+        game_question = await self.db.get_current_gamequestion(chat_id)
         
         if not question:
             await self.end_game(
@@ -51,14 +54,12 @@ class GameHandler:
             )
             return
 
-        game_question = await self.db.create_gamequestion_by_chat_id(
-            chat_id, question.id, capitan.id
-        )
-
-        await self.telegram.send_message(
-            SendMessage(
+        await self.telegram.edit_message(
+            EditMessageText(
                 chat_id=chat_id,
+                message_id=message.message_id,
                 text=f"Вопрос: {question.question_text} (60 секунд на обсуждение)\n\n{question.img_url or ''} ",
+                reply_markup=kb.keyboard_get
             )
         )
 
@@ -74,12 +75,12 @@ class GameHandler:
             else:
                 response = f"❌ Неправильно!\nПравильный ответ: {question.answer_text}"
                 game.score_bot += 1
-                await self.db.update_game(game.id, score_gamers=game.score_gamers)
+                await self.db.update_game(game.id, score_bot=game.score_bot)
                 game_question.status = QuestionStatus.wrong_answer
         except asyncio.TimeoutError:
             response = f"⏰ Время вышло! Правильный ответ: {question.answer_text}"
             game.score_bot += 1
-            await self.db.update_game(game.id, score_gamers=game.score_gamers)
+            await self.db.update_game(game.id, score_bot=game.score_bot)
             game_question.status = QuestionStatus.wrong_answer
         finally:
             await self.db.update_object(game_question)
@@ -99,7 +100,7 @@ class GameHandler:
     async def round_results(self, chat_id: int, game: Game) -> None:
         text = f"Счёт: {game.score_gamers}:{game.score_bot} \n\n"
 
-        if game.round < 2:
+        if game.round < 5:
             if game.score_gamers > game.score_bot:
                 text += " 🏆 В пользу знатоков!"
             elif game.score_gamers < game.score_bot:
@@ -109,7 +110,7 @@ class GameHandler:
 
             text += "\n\n⏳ Следующий раунд начнется через 5 секунд!"
 
-            await self.telegram.send_message(
+            message = await self.telegram.send_message(
                 SendMessage(
                     chat_id=chat_id,
                     text=text,
@@ -123,7 +124,7 @@ class GameHandler:
             await self.finish_game(chat_id, game)
 
     async def finish_game(self, chat_id: int, game: Game) -> None:
-        score_text = f"Счёт: {game.score_gamers}:{game.score_bot} 🎮"
+        score_text = f"Финальный счёт: {game.score_gamers}:{game.score_bot} "
 
         if game.score_gamers > game.score_bot:
             result_text = "🎉 Победили знатоки!"

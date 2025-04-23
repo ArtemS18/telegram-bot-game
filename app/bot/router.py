@@ -38,10 +38,14 @@ class Router:
         logging.info("Команда: %s, Состояние: %s", command, state.name)
         if handler:
             return await handler(*args, **kwargs)
+        handler = self.handlers.get(command_type, {}).get(state.name, {}).get(None)
+        if handler:
+            return await handler(*args, **kwargs)
         logging.info(
             "Команда '%s' '%s' и '%s' не зарегистрированы.",
             command_type,
             command,
             state.name,
         )
+       
         return None

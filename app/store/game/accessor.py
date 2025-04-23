@@ -40,8 +40,11 @@ class GameAccessor(BaseAccessor):
 
     async def create_game(self, chat_id: int) -> Game:
         existing_game = await self.get_game_by_chat_id(chat_id)
-        if existing_game:
+        
+        if existing_game is not None:
             return existing_game 
+        if existing_game is not None and existing_game.round == 0:
+                await self.update_game(existing_game.id, status=GameStatus.end)
 
         insert_request = insert(Game).values(chat_id=chat_id)
         async with self.app.store.database.session() as session:
@@ -284,7 +287,7 @@ class GameAccessor(BaseAccessor):
             select(Question)
             .join(GameQuestion, GameQuestion.question_id == Question.id)
             .join(Game, Game.id==GameQuestion.game_id)
-            .where((Game.id == game.id) & GameQuestion.status == QuestionStatus.in_progress )
+            .where((Game.id == game.id) & (GameQuestion.status == QuestionStatus.in_progress))
             .order_by(GameQuestion.id)
             .limit(1)
         )
@@ -319,7 +322,6 @@ class GameAccessor(BaseAccessor):
         
     async def create_gamequestion_by_chat_id(self, chat_id: int, question_id: int, user_id:int) -> GameQuestion:
         game = await self.get_game_by_chat_id(chat_id)
-        print(game)
         return await self.create_gamequestion(game.id, question_id, user_id)
 
     async def update_gamequestion(self, gamequestion_id: int, new_question_id: int) -> GameQuestion | None:
@@ -338,19 +340,14 @@ class GameAccessor(BaseAccessor):
     async def update_gamequestion_answering_player(
             self, game_id: int, user_id: int, new_answering_player: int
         ) -> GameQuestion | None:
-        """
-        Обновляет answering_player для вопроса в игре.
-        """
-        print(new_answering_player)
         async with self.app.store.database.session() as session:
-            # 1. Получаем объект GameQuestion, который нужно обновить
             select_stmt = (
                 select(GameQuestion)
                 .join(GameUser, GameUser.game_id == GameQuestion.game_id)
                 .where(
                     (GameUser.game_id == game_id) &
                     (GameUser.user_id == user_id) &
-                    (GameQuestion.game_id == game_id)
+                    (GameQuestion.status == QuestionStatus.in_progress)
                 )
                 .limit(1)
             )
@@ -358,11 +355,9 @@ class GameAccessor(BaseAccessor):
             result = await session.execute(select_stmt)
             game_question = result.scalar_one_or_none()
 
-            # 2. Обновляем объект, если он найден
             if game_question:
-                print(game_question.answering_player)
-                #game_question.answering_player = new_answering_player # ОШИБКА! Присваивается объект GameUser
-                game_question.answering_player = new_answering_player  # Теперь присваиваем ID пользователя
+                print(game_question.answering_player, new_answering_player)
+                game_question.answering_player = new_answering_player 
                 await session.merge(game_question) 
                 await session.commit()  # Обновляем объект из БД после коммита
                 return game_question

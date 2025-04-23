@@ -9,7 +9,7 @@ from app.base.base_accessor import BaseAccessor
 
 from .models import EditMessageText, SendMessage, Update
 from .poller import Poller
-from .schema import InlineKeyboardMarkupSchema, UpdateSchema
+from .schema import InlineKeyboardMarkupSchema, UpdateSchema, MessageSchema
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ class TgApiAccessor(BaseAccessor):
         self.poller: Poller | None = None
         self.offset: int = 0
         self.update_schema = UpdateSchema()
+        self.messageschema = MessageSchema()
         self.keyboard_schema = InlineKeyboardMarkupSchema()
 
     async def connect(self) -> None:
@@ -66,7 +67,9 @@ class TgApiAccessor(BaseAccessor):
                 params=params,
             )
         ) as response:
-            await response.json()
+            data =  await response.json()
+            message = self.messageschema.load(data.get('result', {}))
+            return message
             # data = await response.json()
             # logger.info(data)
 

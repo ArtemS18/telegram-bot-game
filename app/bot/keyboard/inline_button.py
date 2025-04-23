@@ -33,3 +33,11 @@ keyboard_next = InlineKeyboardMarkup(
     ]
 )
 
+keyboard_get = InlineKeyboardMarkup(
+    [
+        [InlineKeyboardButton(
+            text="Дать ответ",
+            callback_data="get")],
+    ]
+)
+

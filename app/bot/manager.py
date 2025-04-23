@@ -30,17 +30,16 @@ class BotManager:
         self.router.register("/create_game", self.states.creation_game)(
             self.handler.command.creation_game
         )
+        self.router.register("/create_game@Test_20053_bot", self.states.creation_game)(
+            self.handler.command.creation_game
+        )
+    
         self.router.register(None, self.states.question_active)(
             self.handler.command.creation_game
         )
-        self.router.register("/answer", self.states.check_answer)(
+        self.router.register(None, self.states.check_answer)(
             lambda message: self.middleware.auth.answering_only_middleware(
                 self.handler.command.answer_command, message=message
-            )
-        )
-        self.router.register("/get", self.states.check_answer)(
-            lambda message: self.middleware.auth.captain_only_middleware(
-                self.handler.command.get_answer, message=message
             )
         )
 
@@ -64,6 +63,11 @@ class BotManager:
         self.router.callback_register("quite", self.states.finish)(
             lambda callback: self.middleware.auth.player_only_middleware(
                 self.handler.callback.quite_game, callback=callback
+            )
+        )
+        self.router.callback_register("get", self.states.check_answer)(
+            lambda callback: self.middleware.auth.captain_only_middleware(
+                self.handler.callback.get_answer, callback=callback
             )
         )
         self.router.callback_register("user", self.states.check_answer)(
