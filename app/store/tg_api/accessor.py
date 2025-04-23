@@ -29,15 +29,17 @@ class TgApiAccessor(BaseAccessor):
         self.update_schema = UpdateSchema()
         self.keyboard_schema = InlineKeyboardMarkupSchema()
 
-    async def connect(self, app: "Application") -> None:
+    async def connect(self) -> None:
         self.session = ClientSession()
         self.poller = Poller(self.app.store)
         await self.poller.start()
         self.app.log.info("Start polling")
 
-    async def disconnect(self, app: "Application") -> None:
+    async def disconnect(self) -> None:
         if self.poller.is_running:
             await self.poller.stop()
+        if self.session:
+            await self.session.close()
 
     @staticmethod
     def _get_params() -> dict:

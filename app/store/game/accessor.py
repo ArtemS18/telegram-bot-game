@@ -316,6 +316,24 @@ class GameAccessor(BaseAccessor):
             result = await session.execute(update_request)
             await session.commit()
             return result.scalar_one_or_none()
+    
+    async def update_gamequestion_answering_player(
+        self, game_id: int, user_id: int, new_answering_player: int
+    ) -> GameQuestion | None:
+        update_request = (
+            update(GameQuestion)
+            .join(GameUser, GameUser.game_id == GameQuestion.game_id)
+            .where(
+                (GameUser.game_id == game_id) &
+                (GameUser.user_id == user_id) &
+                (GameQuestion.game_id == game_id))
+            .values(answering_player=new_answering_player)
+            .returning(GameQuestion).limit(1)
+        )
+        async with self.app.store.database.session() as session:
+            result = await session.execute(update_request)
+            await session.commit()
+            return result.scalar_one_or_none()
 
     async def update_game(self, game_id: int, **fields) -> Game | None:
         if not fields:
@@ -355,7 +373,7 @@ class GameAccessor(BaseAccessor):
             return capitan.scalar_one_or_none()
         
     async def get_all_users_in_game(self, game_id: int) -> list[GameUser]:
-        stmt = select(GameUser).where(GameUser.game_id == game_id)
+        stmt = select(GameUser).where(GameUser.game_id == game_id).order_by(GameUser.id)
         async with self.app.store.database.session() as session:
             result = await session.execute(stmt)
             return result.scalars().all()

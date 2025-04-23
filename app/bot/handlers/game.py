@@ -32,7 +32,7 @@ class GameHandler:
         await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text=f"Раунд №{game.round + 1} начался! Внимание, вопрос:",
+                text=f"Раунд №{game.round + 1} начался! Внимание, вопрос:"
             )
         )
 
@@ -43,7 +43,7 @@ class GameHandler:
             await self.end_game(
                 SendMessage(
                     chat_id=chat_id,
-                    text="Вопросы закончились. Игра завершена!",
+                    text="🛑 Вопросы закончились. Игра завершена!"
                 )
             )
             return
@@ -55,7 +55,7 @@ class GameHandler:
         await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text=f"{question.question_text}\n\n{question.img_url or ''}",
+                text=f"Вопрос: {question.question_text} (60 секунд на обсуждение)\n\n{question.img_url or ''} ",
             )
         )
 
@@ -64,15 +64,15 @@ class GameHandler:
         try:
             answer: Answer = await self.asyncio.start_timer_with_warning(chat_id)
             if answer.text.lower() == question.answer_text.lower():
-                response = "Правильно! Вы дали верный ответ."
+                response = "✅ Правильно! Вы дали верный ответ."
                 game.score_gamers += 1
                 game_question.status = QuestionStatus.correct_answer
             else:
-                response = f"Неправильно!\n\nПравильный ответ: {question.answer_text}"
+                response = f"❌ Неправильно!\nПравильный ответ: {question.answer_text}"
                 game.score_bot += 1
                 game_question.status = QuestionStatus.wrong_answer
         except asyncio.TimeoutError:
-            response = f"Время вышло! Правильный ответ: {question.answer_text}"
+            response = f"⏰ Время вышло! Правильный ответ: {question.answer_text}"
             game.score_bot += 1
             game_question.status = QuestionStatus.wrong_answer
         finally:
@@ -93,17 +93,17 @@ class GameHandler:
         await self.round_results(chat_id, game)
 
     async def round_results(self, chat_id: int, game: Game) -> None:
-        text = f"Счёт {game.score_gamers}:{game.score_bot}"
+        text = f"Счёт: {game.score_gamers}:{game.score_bot} \n\n"
 
         if game.round < 2:
             if game.score_gamers > game.score_bot:
-                text += " в пользу знатоков."
+                text += " 🏆 В пользу знатоков!"
             elif game.score_gamers < game.score_bot:
-                text += " в пользу телезрителей."
+                text += " 🏆 В пользу телезрителей!"
             else:
-                text += " пока ничья."
+                text += " 🤝 Пока ничья!"
 
-            text += "\nСледующий раунд начнется через 5 секунд."
+            text += "\n\n⏳ Следующий раунд начнется через 5 секунд!"
 
             await self.telegram.send_message(
                 SendMessage(
@@ -119,16 +119,16 @@ class GameHandler:
             await self.finish_game(chat_id, game)
 
     async def finish_game(self, chat_id: int, game: Game) -> None:
-        score_text = f"Счёт {game.score_gamers}:{game.score_bot}"
+        score_text = f"Счёт: {game.score_gamers}:{game.score_bot} 🎮"
 
         if game.score_gamers > game.score_bot:
-            result_text = "Победили знатоки!"
+            result_text = "🎉 Победили знатоки!"
             game.winner = WinnerType.users
         elif game.score_gamers < game.score_bot:
-            result_text = "Победили телезрители!"
+            result_text = "🎉 Победили телезрители!"
             game.winner = WinnerType.bot
         else:
-            result_text = "Ничья!"
+            result_text = "🤝 Ничья!"
             game.winner = WinnerType.not_defined
 
         await self.telegram.send_message(
@@ -146,7 +146,7 @@ class GameHandler:
         await self.end_game(
             SendMessage(
                 chat_id=chat_id,
-                text="Спасибо за игру!",
+                text="Спасибо за игру!\nНажмите на кнопку для начала новой игры! 🎮",
                 reply_markup=kb.keyboard_next,
             )
         )

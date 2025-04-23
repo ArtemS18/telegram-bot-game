@@ -21,7 +21,7 @@ class DatabaseAccessor(BaseAccessor):
         self.engine: AsyncEngine | None = None
         self.session: AsyncSession | None = None
 
-    async def connect(self, app: "Application"):
+    async def connect(self):
         self.engine = create_async_engine(
             URL.create(
                 drivername="postgresql+asyncpg",
@@ -35,6 +35,6 @@ class DatabaseAccessor(BaseAccessor):
         self.session = async_sessionmaker(self.engine, expire_on_commit=False)
         self.app.log.info("Connected '%s'", self.__class__.__name__)
 
-    async def disconnect(self, app: "Application"):
+    async def disconnect(self):
         await self.engine.dispose()
         self.app.log.info("Disconnected '%s'", self.__class__.__name__)

@@ -1,9 +1,10 @@
+import asyncio
 import typing
 
 from app.bot.keyboard import inline_button as kb
 from app.bot.models.dataclasses import Answer
 from app.game.models.play import Game, User
-from app.store.tg_api.models import Message, SendMessage
+from app.store.tg_api.models import InlineKeyboardButton, InlineKeyboardMarkup, Message, SendMessage
 
 if typing.TYPE_CHECKING:
     from app.bot.states.models import BotStates
@@ -22,8 +23,8 @@ class CommandHandler:
 
     async def start_command(self, message: Message) -> None:
         text = (
-            "Привет, давай поиграем в Что? Где? Когда?\n"
-            "Для начала создания лобби /create_game"
+            "🎉 Привет! Готов поиграть в Что? Где? Когда?? \n"
+            "Для начала создай лобби командой /create_game "
         )
 
         await self.telegram.send_message(
@@ -43,8 +44,9 @@ class CommandHandler:
             answer = SendMessage(
                 chat_id=message.chat.id,
                 text=(
-                    "У вас есть незавершенная игра в этом чате:\n"
-                    f"({game.round} раунд, счёт {game.score_gamers}:{game.score_bot})"
+                    "🎮 У вас уже есть незавершенная игра в этом чате! \n"
+                    f"🏆 Раунд: {game.round}  Счёт: {game.score_gamers}:{game.score_bot}\n"
+                    "Нажмите на кнопку, чтобы продолжить! ⏩"
                 ),
                 reply_markup=kb.keyboard_start,
             )
@@ -53,8 +55,8 @@ class CommandHandler:
             return
 
         text = (
-            f"Игра создана @{message.from_user.username}\n"
-            f"Список участников:\n1) @{message.from_user.username}"
+            f"✨ Игра создана @{message.from_user.username}!\n"
+            f"Список участников:\n1) @{message.from_user.username} (Ты!)"
         )
 
         await self.db.add_user_to_game(
@@ -71,6 +73,31 @@ class CommandHandler:
         await self.telegram.send_message(answer)
         self.fsm.set_state(message.chat.id, self.states.add_users)
 
+    async def get_answer(self, message: Message) -> None:
+        chat_id = message.chat.id
+
+        game = await self.db.get_game_by_chat_id(chat_id)
+        gameusers = await self.db.get_all_users_in_game(game.id)
+        buttons = []
+        for idx, gameuser in enumerate(gameusers):
+            user = await self.db.get_user_by_id(gameuser.user_id)
+            button = InlineKeyboardButton(
+                text=f"{idx+1}. @{user.username}",
+                callback_data=f"user_{user.id}"
+            )
+            buttons.append([button])
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+        await self.telegram.send_message(
+            SendMessage(
+                chat_id=chat_id,
+                text="Выберите пользователя из команды:",
+                reply_markup=keyboard
+            )
+        )
+
+
     async def answer_command(self, message: Message) -> None:
         chat_id = message.chat.id
         text = message.text
@@ -79,7 +106,7 @@ class CommandHandler:
             await self.telegram.send_message(
                 SendMessage(
                     chat_id=chat_id,
-                    text="Введите ответ после команды. Пример: /answer Луна",
+                    text="❌ Введите свой ответ после команды! Например: `/answer Луна`"
                 )
             )
             return
@@ -93,3 +120,5 @@ class CommandHandler:
                 user_id=message.from_user.id,
             )
         )
+
+        await asyncio.sleep(3)

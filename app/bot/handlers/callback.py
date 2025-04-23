@@ -25,7 +25,7 @@ class CallbackHandler:
         count = await self.db.get_count_users_in_game(chat_id)
 
         if count > 4:
-            new_text = f"{callback.message.text}\nМожно выбрать капитана и начать игру!"
+            new_text = f"{callback.message.text}\n Можно выбрать капитана и начать игру!"
             edit = EditMessageText(
                 chat_id=chat_id,
                 message_id=callback.message.message_id,
@@ -58,7 +58,7 @@ class CallbackHandler:
             await self.telegram.send_message(
                 SendMessage(
                     chat_id=chat_id,
-                    text=f"@{callback.from_user.username} уже вступил в команду!",
+                    text=f"🚫 @{callback.from_user.username} уже вступил в команду!",
                 )
             )
 
@@ -70,7 +70,7 @@ class CallbackHandler:
             await self.telegram.send_message(
                 SendMessage(
                     chat_id=chat_id,
-                    text="Нет доступных пользователей.",
+                    text="❌ Нет доступных пользователей. Попробуйте позже.",
                 )
             )
             return
@@ -81,7 +81,7 @@ class CallbackHandler:
             await self.telegram.send_message(
                 SendMessage(
                     chat_id=chat_id,
-                    text="Не удалось выбрать капитана. Попробуйте снова.",
+                    text="⚠️ Не удалось выбрать капитана. Попробуйте снова.",
                 )
             )
             return
@@ -92,7 +92,8 @@ class CallbackHandler:
         await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text=f"Бот выбрал @{capitan_user.username} капитаном команды",
+                text=(f"🏆 Бот выбрал @{capitan_user.username} капитаном команды!"
+                      "Теперь капитан команды может начать игру."),
                 reply_markup=kb.keyboard_start,
             )
         )
@@ -103,7 +104,7 @@ class CallbackHandler:
         await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text="Игра началась",
+                text="🚀 Игра началась!",
             )
         )
         await asyncio.sleep(2)
@@ -121,7 +122,7 @@ class CallbackHandler:
         await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text="Вы вышли из игры",
+                text="👋 Вы вышли из игры. До новых встреч!",
             )
         )
         self.fsm.set_state(chat_id, State())
@@ -134,7 +135,7 @@ class CallbackHandler:
             await self.telegram.send_message(
                 SendMessage(
                     chat_id=chat_id,
-                    text="Предыдущая игра не найдена. Создайте новую игру.",
+                    text="🔍 Предыдущая игра не найдена. Создайте новую игру.",
                 )
             )
             self.fsm.set_state(chat_id, State())
@@ -155,7 +156,20 @@ class CallbackHandler:
         await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text="Новая игра началась с тем же составом!",
+                text="🚀 Новая игра началась с тем же составом!",
                 reply_markup=kb.keyboard_start,
             )
         )
+    async def answering_player(self, callback: CallbackQuery) -> None:
+        game = await self.db.get_game_by_chat_id(callback.message.chat.id)
+        user_id = callback.data.split('_')[1]
+        print(user_id)
+        aswering = self.db.get_gameuser_by_user_and_game(game.id, user_id)
+        self.db.update_gamequestion_answering_player(game.id, user_id, aswering)
+        await self.telegram.send_message(
+            SendMessage(
+                chat_id=callback.message.chat.id,
+                text="Этот игоро теперь овечает",
+            )
+        )
+
