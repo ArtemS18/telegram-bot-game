@@ -20,15 +20,16 @@ class DatabaseAccessor(BaseAccessor):
 
         self.engine: AsyncEngine | None = None
         self.session: AsyncSession | None = None
+        self.config = self.app.config.database
 
     async def connect(self):
         self.engine = create_async_engine(
             URL.create(
                 drivername="postgresql+asyncpg",
-                username="postgres",
-                password="artem2005",
-                host="localhost",
-                database="game",
+                username=self.config.username,
+                password=self.config.password,
+                host=self.config.host,
+                database=self.config.database,
             ),
             # echo=True
         )

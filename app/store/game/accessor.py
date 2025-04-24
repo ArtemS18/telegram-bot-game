@@ -30,9 +30,9 @@ class GameAccessor(BaseAccessor):
                 await session.commit()
                 return res.scalar_one_or_none()
 
-    async def create_chat(self, id: int) -> Chat:
-        if not await self.get_chat_by_id(id):
-            insert_request = insert(Chat).values(id=id)
+    async def create_chat(self, chat_id: int) -> Chat:
+        if not await self.get_chat_by_id(chat_id):
+            insert_request = insert(Chat).values(chat_id=id)
             async with self.app.store.database.session() as session:
                 await session.execute(insert_request)
                 await session.commit()
@@ -64,13 +64,19 @@ class GameAccessor(BaseAccessor):
             await session.commit()
             return res.scalar_one_or_none()
 
-    async def create_gameuser(self, game_id: int, 
-                              user_id: int, 
-                              game_role:GameRole=GameRole.player
-                              ) -> GameUser:
-        insert_request = insert(GameUser).values(game_id=game_id, 
-                                                 user_id=user_id, 
-                                                 game_role=game_role).returning(GameUser)
+    async def create_gameuser(
+            self, game_id: int, 
+            user_id: int, 
+            game_role:GameRole=GameRole.player
+        ) -> GameUser:
+        insert_request = (
+            insert(GameUser)
+            .values(
+            game_id=game_id, 
+            user_id=user_id, 
+            game_role=game_role
+            ).returning(GameUser)
+        )
         async with self.app.store.database.session() as session:
             res = await session.execute(insert_request)
             await session.commit()
@@ -80,85 +86,41 @@ class GameAccessor(BaseAccessor):
         select_request = select(Chat).where(Chat.id == id)
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            try:
-                new_res = res.scalars().one()
-                return Chat(id=new_res.id, bot_state=new_res.bot_state)
-            except Exception:
-                return None
+            new_res = res.scalar_or_none()
+            return new_res
 
     async def get_user_by_id(self, id: int) -> User | None:
         select_request = select(User).where(User.id == id).limit(1)
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            try:
-                new_res = res.scalars().one()
-                return User(
-                    id=new_res.id,
-                    count_wins=new_res.count_wins,
-                    count_losses=new_res.count_losses,
-                    username=new_res.username,
-                    is_admin=new_res.is_admin,
-                )
-            except Exception:
-                return None
+            new_res = res.scalar_or_none()
+            return new_res
 
     async def get_gameuser_by_id(self, id: int) -> GameUser | None:
         select_request = select(GameUser).where(GameUser.id == id)
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            try:
-                new_res = res.scalars().one()
-                return GameUser(
-                    id=new_res.id,
-                    user_id=new_res.user_id,
-                    game_id=new_res.game_id,
-                    game_role=new_res.game_role,
-                )
-            except Exception:
-                return None
+            new_res = res.scalar_or_none()
+            return new_res
 
-    async def get_gameuser_by_user_and_game(
-        self, game_id: int, user_id: int
-    ) -> GameUser | None:
+    async def get_gameuser_by_user_and_game(self, game_id: int, user_id: int) -> GameUser | None:
         select_request = (
             select(GameUser)
-            .where((GameUser.game_id == game_id) 
-                   & (GameUser.user_id == user_id))
+            .where(
+            (GameUser.game_id == game_id) & (GameUser.user_id == user_id))
             .limit(1)
         )
-
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
             new_res = res.scalar_one_or_none()
-
-            if new_res is None:
-                return None
-
-            return GameUser(
-                id=new_res.id,
-                user_id=new_res.user_id,
-                game_id=new_res.game_id,
-                game_role=new_res.game_role,
-            )
+            return new_res
 
     async def get_game_by_id(self, id: int) -> Game | None:
-        select_request = select(Game).where(Game.id == id)
+        select_request = select(Game).where(Game.id == id).limit(1)
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            try:
-                new_res = res.scalars().one()
-                print('11111',new_res)
-                return Game(
-                    id=new_res.id,
-                    chat_id=new_res.chat_id,
-                    score_gamers=new_res.score_gamers,
-                    score_bot=new_res.score_bot,
-                    round=new_res.round,
-                    status=new_res.status,
-                    winner=new_res.winner,
-                )
-            except Exception:
-                return None
+            new_res = res.scalar_one_or_none()
+            return new_res
 
     async def get_game_by_chat_id(self, chat_id: int) -> Game | None:
         select_request = (select(Game).where(
@@ -166,48 +128,25 @@ class GameAccessor(BaseAccessor):
             .limit(1))
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            try:
-                new_res = res.scalars().one()
-                return Game(
-                    id=new_res.id,
-                    chat_id=new_res.chat_id,
-                    score_gamers=new_res.score_gamers,
-                    score_bot=new_res.score_bot,
-                    round=new_res.round,
-                    status=new_res.status,
-                    winner=new_res.winner,
-                )
-            except Exception:
-                return None
+            new_res = res.scalar_one_or_none()
+            return new_res
             
     async def get_last_game_by_chat_id(self, chat_id: int) -> Game | None:
         select_request = (
             select(Game)
             .where(Game.chat_id == chat_id)
-            .order_by(Game.id.desc())  # Предполагаем, что ID увеличивается с каждой новой игрой
+            .order_by(Game.id.desc()) 
             .limit(1)
         )
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
             new_res = res.scalar_one_or_none()
-            if not new_res:
-                return None
-
-            return Game(
-                id=new_res.id,
-                chat_id=new_res.chat_id,
-                score_gamers=new_res.score_gamers,
-                score_bot=new_res.score_bot,
-                round=new_res.round,
-                status=new_res.status,
-                winner=new_res.winner,
-            )
+            return new_res
 
     async def get_count_users_in_game(self, chat_id: int) -> int:
         game = await self.get_game_by_chat_id(chat_id)
         if not game:
             return 0
-
         select_request = select(func.count()).where(GameUser.game_id == game.id)
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
@@ -222,14 +161,13 @@ class GameAccessor(BaseAccessor):
         select_request = (
             select(User)
             .join(GameUser, GameUser.user_id == User.id)
-            .where(GameUser.game_id == game.id)  # GameUser.game_role == 'player'
+            .where(GameUser.game_id == game.id)
             .order_by(func.random())
             .limit(1)
         )
-
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            user = res.scalars().one_or_none()
+            user = res.scalar_one_or_none()
             return user
 
     async def add_user_to_game(
@@ -249,14 +187,12 @@ class GameAccessor(BaseAccessor):
         game = await self.get_game_by_chat_id(chat_id)
         if not game:
             return False
-
-        async with self.app.store.database.session() as session:
-            update_request = (
+        update_request = (
                 update(GameUser)
-                .where((GameUser.game_id == game.id) 
-                            & (GameUser.user_id == capitan.id))
+                .where((GameUser.game_id == game.id) & (GameUser.user_id == capitan.id))
                 .values(game_role=GameRole.capitan)
             )
+        async with self.app.store.database.session() as session:
             await session.execute(update_request)
             await session.commit()
             return True
@@ -278,11 +214,14 @@ class GameAccessor(BaseAccessor):
 
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            question = res.scalars().one_or_none()
+            question = res.scalar_one_or_none()
             return question
 
     async def get_current_question(self, chat_id: int) -> Question | None:
         game = await self.get_game_by_chat_id(chat_id)
+        if not game:
+            return None
+        
         select_request = (
             select(Question)
             .join(GameQuestion, GameQuestion.question_id == Question.id)
@@ -298,6 +237,8 @@ class GameAccessor(BaseAccessor):
         
     async def get_current_gamequestion(self, chat_id: int) -> GameQuestion | None:
         game = await self.get_game_by_chat_id(chat_id)
+        if not game:
+            return None
         select_request = (
             select(GameQuestion)
             .join(Game, Game.id==GameQuestion.game_id)
@@ -320,8 +261,10 @@ class GameAccessor(BaseAccessor):
             await session.commit()
             return result.scalar_one()
         
-    async def create_gamequestion_by_chat_id(self, chat_id: int, question_id: int, user_id:int) -> GameQuestion:
+    async def create_gamequestion_by_chat_id(self, chat_id: int, question_id: int, user_id:int) -> GameQuestion|None:
         game = await self.get_game_by_chat_id(chat_id)
+        if not game:
+            return None
         return await self.create_gamequestion(game.id, question_id, user_id)
 
     async def update_gamequestion(self, gamequestion_id: int, new_question_id: int) -> GameQuestion | None:

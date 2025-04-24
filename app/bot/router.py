@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable
 
-from .states.models import State
+from .states.models import BotState
 
 
 class Router:
@@ -11,7 +11,7 @@ class Router:
 
     def register(
             self, command: str | None = None, 
-            state: State = State()
+            state: BotState = BotState.none
             ):
         def decorator(handler: Callable):
             self.handlers["message"][state.name][command] = handler
@@ -19,7 +19,7 @@ class Router:
 
         return decorator
 
-    def callback_register(self, data: str | None = None, state: State = State()):
+    def callback_register(self, data: str | None = None, state: BotState = BotState.none):
         def decorator(handler: Callable):
             self.handlers["callback_query"][state.name][data] = handler
             return handler
@@ -30,10 +30,9 @@ class Router:
                 self,
                 command_type: str,
                 command: str | None = None,
-                state: State = State(),
-                *args,
-                **kwargs
-                    ):
+                state: BotState = BotState.none,
+                *args, **kwargs
+        ):
         handler = self.handlers.get(command_type, {}).get(state.name, {}).get(command)
         logging.info("Команда: %s, Состояние: %s", command, state.name)
         if handler:

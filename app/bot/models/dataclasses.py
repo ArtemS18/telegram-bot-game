@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Literal, Optional
 
 from app.game.models.play import User
 

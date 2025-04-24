@@ -2,12 +2,11 @@ import asyncio
 import typing
 
 from app.bot.keyboard import inline_button as kb
-from app.bot.states.models import State
 from app.game.models.play import User
 from app.store.tg_api.models import CallbackQuery, EditMessageText, InlineKeyboardButton, InlineKeyboardMarkup, SendMessage
 
 if typing.TYPE_CHECKING:
-    from app.bot.states.models import BotStates
+    from app.bot.states.models import BotState
     from app.store.game.accessor import GameAccessor
     from app.web.app import Application
 
@@ -18,7 +17,7 @@ class CallbackHandler:
         self.fsm = app.bot.fsm
         self.telegram = app.store.tg_api
         self.db: "GameAccessor" = app.store.game
-        self.states: "BotStates" = app.bot.states
+        self.states: "BotState" = app.bot.states
 
     async def add_user(self, callback: CallbackQuery) -> None:
         chat_id = callback.message.chat.id
@@ -31,10 +30,12 @@ class CallbackHandler:
             ),
             chat_id,
         )
+        last_text = callback.message.text
 
         if not added:
             count+=1
-            new_text = f"{callback.message.text}\n{count}) @{callback.from_user.username}"
+            last_text.replace(f"/{count-1})", f"/{count})")
+            new_text = f"{last_text}\n{count}) @{callback.from_user.username}"
             edit = EditMessageText(
                 chat_id=chat_id,
                 message_id=callback.message.message_id,
@@ -124,7 +125,7 @@ class CallbackHandler:
                 text="👋 Вы вышли из игры. До новых встреч!",
             )
         )
-        self.fsm.set_state(chat_id, State())
+        self.fsm.set_state(chat_id, self.states.none)
 
     async def start_game_with_same_team(self, callback: CallbackQuery) -> None:
         chat_id = callback.message.chat.id
@@ -137,7 +138,7 @@ class CallbackHandler:
                     text="🔍 Предыдущая игра не найдена. Создайте новую игру.",
                 )
             )
-            self.fsm.set_state(chat_id, State())
+            self.fsm.set_state(chat_id, self.states.none)
             return
 
         old_users = await self.db.get_all_users_in_game(last_game.id)
@@ -161,20 +162,26 @@ class CallbackHandler:
         )
     async def answering_player(self, callback: CallbackQuery) -> None:
         game = await self.db.get_game_by_chat_id(callback.message.chat.id)
+        if not game:
+            return 
         user_id = int(callback.data.split('_')[1].strip())
+
         aswering = await self.db.get_gameuser_by_user_and_game(game.id, user_id)
         await self.db.update_gamequestion_answering_player(game.id, user_id, aswering.id)
+
+        user = await self.db.get_user_by_id(user_id)
         await self.telegram.send_message(
             SendMessage(
                 chat_id=callback.message.chat.id,
-                text="Теперь этот игорок отвечает своим следующим сообщением!",
+                text=f"Теперь @{user.username} отвечает своим следующим сообщением!",
             )
         )
 
     async def get_answer(self, callback: CallbackQuery) -> None:
         chat_id = callback.message.chat.id
-        print(1111)
         game = await self.db.get_game_by_chat_id(chat_id)
+        if not game:
+            return 
         gameusers = await self.db.get_all_users_in_game(game.id)
         buttons = []
         for idx, gameuser in enumerate(gameusers):

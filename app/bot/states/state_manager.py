@@ -1,24 +1,21 @@
 import logging
+import typing
 
-from .models import State
+from .models import BotState
 
+if typing.TYPE_CHECKING:
+    from app.web.app import Application
+    from app.store.state.accessor import SateAccessor
 
 class FSM:
-    _instance = None
+    def __init__(self, app: "Application"):
+        self.db: "SateAccessor" = app.store.state
 
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    def get_state(self, chat_id) -> BotState:
+        return self.db.get_state_by_chat_id(chat_id)
 
-    def __init__(self):
-        if not hasattr(self, "current_state"):
-            self.chats = {}
+    def set_state(self, chat_id, state: BotState):
+        return self.db.set_state_by_chat_id(chat_id)
 
-    def get_state(self, chat_id) -> State:
-        self.chats[chat_id] = self.chats.get(chat_id, State())
-        return self.chats[chat_id]
-
-    def set_state(self, chat_id, state: State):
-        logging.info(state)
-        self.chats[chat_id] = state
+def setup_fsm(app: "Application"):
+    app.bot.fsm = FSM(app)

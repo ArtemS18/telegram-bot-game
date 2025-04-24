@@ -8,7 +8,7 @@ from app.game.models.play import Game
 from app.store.tg_api.models import EditMessageText, Message, SendMessage
 
 if typing.TYPE_CHECKING:
-    from app.bot.states.models import BotStates
+    from app.bot.states.models import BotState
     from app.bot.states.state_manager import FSM
     from app.store.game.accessor import GameAccessor
     from app.store.tg_api.accessor import TgApiAccessor
@@ -21,7 +21,7 @@ class GameHandler:
         self.fsm: "FSM" = app.bot.fsm
         self.telegram: "TgApiAccessor" = app.store.tg_api
         self.db: "GameAccessor" = app.store.game
-        self.states: "BotStates" = app.bot.states
+        self.states: "BotState" = app.bot.states
         self.answer_queues = app.bot.answer_queues
         self.asyncio = app.bot.utils.asyncio
 
@@ -40,10 +40,8 @@ class GameHandler:
         if not question:
             question = await self.db.get_random_question(chat_id)
             game_question = await self.db.create_gamequestion_by_chat_id(chat_id, question.id, capitan.id)
-            game.round+=1
-            await self.db.update_game(game.id, round=game.round)
-
-        game_question = await self.db.get_current_gamequestion(chat_id)
+        else:
+            game_question = await self.db.get_current_gamequestion(chat_id)
         
         if not question:
             await self.end_game(
@@ -108,7 +106,7 @@ class GameHandler:
             else:
                 text += " 🤝 Пока ничья!"
 
-            text += "\n\n⏳ Следующий раунд начнется через 5 секунд!"
+            text += "\n\n⏳ Следующий раунд начнется через 3 секунды!"
 
             message = await self.telegram.send_message(
                 SendMessage(
@@ -117,7 +115,8 @@ class GameHandler:
                 )
             )
 
-            await asyncio.sleep(5)
+            await asyncio.sleep(3)
+            await self.db.update_game(game.id, round=game.round+1)
             await self.start_game_round(chat_id)
         else:
             self.fsm.set_state(chat_id, self.states.finish)
@@ -128,13 +127,13 @@ class GameHandler:
 
         if game.score_gamers > game.score_bot:
             result_text = "🎉 Победили знатоки!"
-            game.winner = WinnerType.users
+            await self.db.update_game(game.id, winner=WinnerType.users)
         elif game.score_gamers < game.score_bot:
             result_text = "🎉 Победили телезрители!"
-            game.winner = WinnerType.bot
+            await self.db.update_game(game.id, winner=WinnerType.bot)
         else:
             result_text = "🤝 Ничья!"
-            game.winner = WinnerType.not_defined
+            await self.db.update_game(game.id, winner=WinnerType.not_defined)
 
         await self.telegram.send_message(
             SendMessage(chat_id=chat_id, text=score_text)

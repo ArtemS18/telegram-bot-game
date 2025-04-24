@@ -3,7 +3,7 @@ import typing
 from app.store.tg_api.models import Update
 
 if typing.TYPE_CHECKING:
-    from app.bot.states.models import BotStates
+    from app.bot.states.models import BotState
     from app.bot.states.state_manager import FSM
     from app.web.app import Application
 
@@ -15,7 +15,7 @@ class BotManager:
         self.fsm: "FSM" = app.bot.fsm
         self.middleware = app.bot.middleware
         self.handler = self.app.bot.handlers
-        self.states: "BotStates" = self.app.bot.states
+        self.states: "BotState" = self.app.bot.states
 
         self._register_routes()
 
@@ -56,7 +56,7 @@ class BotManager:
             )
         )
         self.router.callback_register("next", self.states.finish)(
-            lambda callback: self.middleware.auth.captain_only_middleware(
+            lambda callback: self.middleware.auth.player_only_middleware(
                 self.handler.callback.start_game_with_same_team, callback=callback
             )
         )
