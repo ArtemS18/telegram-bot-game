@@ -20,6 +20,7 @@ class Application(FastApiApplication):
 
 
 app = Application()
+    
 
 
 def setup_app(config_path: str, etc_config_path: str) -> Application:

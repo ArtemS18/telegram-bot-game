@@ -26,9 +26,10 @@ class DatabaseAccessor(BaseAccessor):
         self.engine = create_async_engine(
             URL.create(
                 drivername="postgresql+asyncpg",
-                username=self.config.username,
+                username=self.config.user,
                 password=self.config.password,
                 host=self.config.host,
+                port=self.config.port,
                 database=self.config.database,
             ),
             # echo=True

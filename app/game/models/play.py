@@ -65,7 +65,7 @@ class GameQuestion(BaseModel):
     status: Mapped[QuestionStatus] = mapped_column(
         Enum(QuestionStatus), default=QuestionStatus.in_progress
     )
-    answering_player: Mapped[int] = mapped_column(ForeignKey("games_users.id"))
+    answering_player: Mapped[int] = mapped_column(ForeignKey("games_users.id"), nullable=True)
 
     game: Mapped["Game"] = relationship(back_populates="questions")
     question: Mapped["Question"] = relationship(back_populates="game_questions")

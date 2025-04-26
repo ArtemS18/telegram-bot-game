@@ -93,8 +93,9 @@ class TgApiAccessor(BaseAccessor):
                 params=params,
             )
         ) as response:
-            data = await response.json()
-            logger.info(data)
+            data =  await response.json()
+            #message = self.messageschema.load(data.get('result', {}))
+            #return message
 
     async def get_long_poll(self) -> None:
         async with self.session.get(

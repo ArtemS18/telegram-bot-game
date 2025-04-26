@@ -1,6 +1,6 @@
 import typing
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 
 from app.base.base_accessor import BaseAccessor
 from app.base.base_sqlalchemy import BaseModel
@@ -32,11 +32,11 @@ class GameAccessor(BaseAccessor):
 
     async def create_chat(self, chat_id: int) -> Chat:
         if not await self.get_chat_by_id(chat_id):
-            insert_request = insert(Chat).values(chat_id=id)
+            insert_request = insert(Chat).values(id=chat_id).returning(Chat)
             async with self.app.store.database.session() as session:
-                await session.execute(insert_request)
+                res = await session.execute(insert_request)
                 await session.commit()
-        return await self.get_chat_by_id(id)
+                return res.scalar_one_or_none()
 
     async def create_game(self, chat_id: int) -> Game:
         existing_game = await self.get_game_by_chat_id(chat_id)
@@ -83,24 +83,24 @@ class GameAccessor(BaseAccessor):
             return res.scalar_one_or_none()
 
     async def get_chat_by_id(self, id: int) -> User | None:
-        select_request = select(Chat).where(Chat.id == id)
+        select_request = select(Chat).where(Chat.id == id).limit(1)
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            new_res = res.scalar_or_none()
+            new_res = res.scalar_one_or_none()
             return new_res
 
     async def get_user_by_id(self, id: int) -> User | None:
         select_request = select(User).where(User.id == id).limit(1)
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            new_res = res.scalar_or_none()
+            new_res = res.scalar_one_or_none()
             return new_res
 
     async def get_gameuser_by_id(self, id: int) -> GameUser | None:
         select_request = select(GameUser).where(GameUser.id == id)
         async with self.app.store.database.session() as session:
             res = await session.execute(select_request)
-            new_res = res.scalar_or_none()
+            new_res = res.scalar_one_or_none()
             return new_res
 
     async def get_gameuser_by_user_and_game(self, game_id: int, user_id: int) -> GameUser | None:
@@ -121,6 +121,18 @@ class GameAccessor(BaseAccessor):
             res = await session.execute(select_request)
             new_res = res.scalar_one_or_none()
             return new_res
+        
+    async def get_all_chats(self) -> list[Chat] | None:
+        select_request = select(Chat)
+        async with self.app.store.database.session() as session:
+            res = await session.execute(select_request)
+            chats = list(res.scalars())
+
+            if not chats:
+                return None
+            return chats
+
+
 
     async def get_game_by_chat_id(self, chat_id: int) -> Game | None:
         select_request = (select(Game).where(
@@ -307,9 +319,6 @@ class GameAccessor(BaseAccessor):
             else:
                 return None  # Если GameQuestion не найден
 
-
-
-
     async def update_game(self, game_id: int, **fields) -> Game | None:
         if not fields:
             return None
@@ -334,7 +343,40 @@ class GameAccessor(BaseAccessor):
             await session.merge(obj) 
             await session.commit()
         return obj
+    
 
+    async def delete_gameuser_by_game_user(self, game_id: int, user_id: int) -> typing.List[GameUser]:
+        subquery = (
+            select(GameUser.id)
+            .join(Game, GameUser.game_id == Game.id)
+            .where(
+                (Game.id == game_id) &
+                (GameUser.user_id == user_id)
+            )
+        )
+
+        delete_query = (
+            delete(GameUser)
+            .where(GameUser.id.in_(subquery))
+        )
+        async with self.app.store.database.session() as session:
+            await session.execute(
+            update(GameQuestion)
+            .where(GameQuestion.answering_player.in_(subquery))
+            .values(answering_player=None)
+            )
+            await session.commit() 
+            await session.execute(delete(GameUser).where(GameUser.id.in_(subquery)))
+            await session.commit() 
+
+            select_query = (
+                select(GameUser)
+                .where(GameUser.game_id == game_id)
+            )
+            result = await session.execute(select_query)
+            players = result.scalars().all()
+
+        return players
 
     async def get_capitan_by_game_id(self, game_id : int) -> User | None:
         req = (select(User)

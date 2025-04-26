@@ -3,8 +3,9 @@ import typing
 
 from app.bot.keyboard import inline_button as kb
 from app.bot.models.dataclasses import Answer
+from app.game.models.enums import GameStatus
 from app.game.models.play import Game, User
-from app.store.tg_api.models import InlineKeyboardButton, InlineKeyboardMarkup, Message, SendMessage
+from app.store.tg_api.models import EditMessageText, InlineKeyboardButton, InlineKeyboardMarkup, Message, SendMessage
 
 if typing.TYPE_CHECKING:
     from app.bot.states.models import BotState
@@ -20,6 +21,7 @@ class CommandHandler:
         self.states: "BotState" = app.bot.states
         self.db: "GameAccessor" = app.store.game
         self.answer_queues = app.bot.answer_queues
+        self.asyncio = app.bot.utils.asyncio
 
     async def start_command(self, message: Message) -> None:
         text = (
@@ -35,12 +37,11 @@ class CommandHandler:
         if not user:
             await self.db.create_chat(message.chat.id)
 
-        self.fsm.set_state(message.chat.id, self.states.creation_game)
+        await self.fsm.set_state(message.chat.id, self.states.creation_game)
 
     async def creation_game(self, message: Message) -> None:
         game: Game = await self.db.create_game(message.chat.id)
-
-        if game:
+        if game and await self.db.get_capitan_by_game_id(game.id):
             capitan = await self.db.get_capitan_by_game_id(game.id)
             answer = SendMessage(
                 chat_id=message.chat.id,
@@ -52,18 +53,17 @@ class CommandHandler:
                 ),
                 reply_markup=kb.keyboard_start,
             )
-            self.fsm.set_state(message.chat.id, self.states.start_game)
+            await self.fsm.set_state(message.chat.id, self.states.start_game)
             await self.telegram.send_message(answer)
             return
-
         text = (
-            f"✨ Игра создана @{message.from_user.username}! Необходимо набрать (3/1) участника для начала игры\n"
-            f"Список участников:\n1) @{message.from_user.username} (Создатель)"
+            f"✨ Игра создана! Необходимо набрать (3/1) участника для начала игры\n"
+            f"Список участников:\n1) @{message.from_user.username}"
         )
 
         await self.db.add_user_to_game(
             User(id=message.from_user.id, 
-                 username=message.from_user.username),
+                username=message.from_user.username),
             message.chat.id,
         )
 
@@ -72,9 +72,20 @@ class CommandHandler:
             text=text,
             reply_markup=kb.keyboard_add,
         )
-
-        await self.telegram.send_message(answer)
-        self.fsm.set_state(message.chat.id, self.states.add_users)
+        await self.fsm.set_state(message.chat.id, self.states.add_users)
+        ms = await self.telegram.send_message(answer)
+        game = await self.db.get_game_by_chat_id(message.chat.id)
+        try:
+            team = await self.asyncio.start_timer_team(message.chat.id)
+        except asyncio.TimeoutError:
+            edit = EditMessageText(
+                chat_id=message.chat.id,
+                text="Лобби удалено из-за превышения лимита ожидания (30 сек)",
+                message_id=ms.message_id
+            )
+            await self.telegram.edit_message(edit)
+            await self.db.update_game(game.id, status=GameStatus.end)
+            await self.fsm.set_state(message.chat.id, self.states.none)
 
 
     async def answer_command(self, message: Message) -> None:
@@ -91,7 +102,6 @@ class CommandHandler:
             return
 
         answer_text = text.strip()
-
         await self.answer_queues[chat_id].put(
             Answer(
                 text=answer_text,
@@ -99,5 +109,3 @@ class CommandHandler:
                 user_id=message.from_user.id,
             )
         )
-
-        await asyncio.sleep(2)

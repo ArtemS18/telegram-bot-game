@@ -1,8 +1,10 @@
+import asyncio
 from dataclasses import dataclass
 import typing
 
-from app.game.models.enums import GameRole
-from app.store.tg_api.models import SendMessage
+from app.bot.states.state_manager import FSM
+from app.game.models.enums import BotState, GameRole
+from app.store.tg_api.models import CallbackQuery, Message, SendMessage
 from app.game.models.play import GameUser
 
 if typing.TYPE_CHECKING:
@@ -13,6 +15,7 @@ if typing.TYPE_CHECKING:
 class AuthData:
     gameuser: GameUser | None = None
     chat_id : int | None = None
+    obj: Message | CallbackQuery  | None = None
     
 
 class AuthMiddleware:
@@ -20,6 +23,10 @@ class AuthMiddleware:
         self.app: "Application" = app
         self.telegram = app.store.tg_api
         self.db: "GameAccessor" = app.store.game
+        self.active_tasks =  self.app.bot.active_tasks
+        self.handler = self.app.bot.handlers
+        self.fsm: "FSM" = app.bot.fsm
+        self.states: "BotState" = app.bot.states
 
 
     async def auth_user(self, *args, **kwargs) -> AuthData:
@@ -45,34 +52,25 @@ class AuthMiddleware:
             return
 
         gameuser = await self.db.get_gameuser_by_user_and_game(game.id, user_id)
-        return AuthData(gameuser=gameuser, chat_id=chat_id)
+        return AuthData(gameuser=gameuser, chat_id=chat_id, obj=obj)
+    
 
     async def captain_only_middleware(self, handler, *args, **kwargs):
         data = await self.auth_user(*args, **kwargs)
         if not data:
             return 
         if not data.gameuser or data.gameuser.game_role != GameRole.capitan:
-            await self.telegram.send_message(
-                SendMessage(
-                    chat_id=data.chat_id,
-                    text="Только капитан команды может использовать эту команду.",
-                )
-            )
             return
         await handler(*args, **kwargs)
 
 
     async def player_only_middleware(self, handler, *args, **kwargs):
         data = await self.auth_user(*args, **kwargs)
+        print(data.gameuser, data.gameuser.game_role)
         if not data:
             return 
+            
         if not data.gameuser or data.gameuser.game_role not in [GameRole.capitan, GameRole.player]:
-            await self.telegram.send_message(
-                SendMessage(
-                    chat_id=data.chat_id,
-                    text="У вас нет доступа к этой команде.",
-                )
-            )
             return
         await handler(*args, **kwargs)
 
@@ -82,11 +80,9 @@ class AuthMiddleware:
             return 
         current_question = await self.db.get_current_gamequestion(data.chat_id)
         if data.gameuser.id != current_question.answering_player:
-            await self.telegram.send_message(
-                SendMessage(
-                    chat_id=data.chat_id,
-                    text="Вы не можете отвечать.",
-                )
-            )
             return
-        await handler(*args, **kwargs)
+        if not self.app.bot.active_tasks.get(data.chat_id):
+            self.app.bot.active_tasks[data.chat_id] = []
+        task=asyncio.create_task(handler(*args, **kwargs))
+        self.active_tasks[data.chat_id].append(task)
+        task.add_done_callback(lambda t: self.active_tasks.pop(data.chat_id, None))

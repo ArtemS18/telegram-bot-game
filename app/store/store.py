@@ -12,11 +12,13 @@ class Store:
         from app.store.game.accessor import GameAccessor
         from app.store.tg_api.accessor import TgApiAccessor
         from app.store.question.accessor import QuestionAccessor
+        from app.store.state.accessor import SateAccessor
 
         self.tg_api = TgApiAccessor(app)
         self.database = DatabaseAccessor(app)
         self.game = GameAccessor(app)
         self.question = QuestionAccessor(app)
+        self.state = SateAccessor(app)
 
 
 def setup_store(app: "Application") -> None:

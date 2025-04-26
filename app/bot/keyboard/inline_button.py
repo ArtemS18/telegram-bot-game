@@ -5,6 +5,9 @@ keyboard_add = InlineKeyboardMarkup(
         [InlineKeyboardButton(
             text="Присоединиться",
             callback_data="join")],
+        [InlineKeyboardButton(
+            text="Выйти",
+            callback_data="quite")],
     ]
 )
 
@@ -28,8 +31,8 @@ keyboard_next = InlineKeyboardMarkup(
             text="Продолжить играть",
             callback_data="next")],
         [InlineKeyboardButton(
-            text="Выйти из игры",
-            callback_data="quite")],
+            text="Покинуть игру",
+            callback_data="userquite")],
     ]
 )
 

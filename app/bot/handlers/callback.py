@@ -2,6 +2,7 @@ import asyncio
 import typing
 
 from app.bot.keyboard import inline_button as kb
+from app.game.models.enums import GameStatus
 from app.game.models.play import User
 from app.store.tg_api.models import CallbackQuery, EditMessageText, InlineKeyboardButton, InlineKeyboardMarkup, SendMessage
 
@@ -18,11 +19,16 @@ class CallbackHandler:
         self.telegram = app.store.tg_api
         self.db: "GameAccessor" = app.store.game
         self.states: "BotState" = app.bot.states
+        self.queues = app.bot.answer_queues
+        self.active_tasks =  self.app.bot.active_tasks
 
     async def add_user(self, callback: CallbackQuery) -> None:
         chat_id = callback.message.chat.id
-        count = await self.db.get_count_users_in_game(chat_id)
-
+        game = await self.db.get_game_by_chat_id(chat_id)
+        if not game:
+            return
+        users_in_game = await self.db.get_all_users_in_game(game.id)
+        count = len(users_in_game)
         added = await self.db.add_user_to_game(
             User(
                 id=callback.from_user.id,
@@ -30,37 +36,29 @@ class CallbackHandler:
             ),
             chat_id,
         )
-        last_text = callback.message.text
 
-        if not added:
-            count+=1
-            last_text.replace(f"/{count-1})", f"/{count})")
-            new_text = f"{last_text}\n{count}) @{callback.from_user.username}"
+        if not added: 
+            game = await self.db.get_game_by_chat_id(chat_id)
+            users_in_game = await self.db.get_all_users_in_game(game.id)
+            count = len(users_in_game)
+            new_text = f"✨ Игра создана! Необходимо набрать (3/{count}) участника для начала игры\n"
+            for i, user in enumerate(users_in_game, start=1): 
+                useri = await self.db.get_user_by_id(user.user_id)
+                new_text += f"{i}) @{useri.username}\n"
+
+            if count >= 3:
+                await self.queues[chat_id].put("GO")
+                new_text += "\nМожно выбрать капитана и начать игру!"
+                await self.fsm.set_state(chat_id, self.states.select_capitan)
+
+            edit_markup = kb.keyboard_add if count < 3 else kb.keyboard_select 
             edit = EditMessageText(
                 chat_id=chat_id,
                 message_id=callback.message.message_id,
                 text=new_text,
-                reply_markup=kb.keyboard_add,
+                reply_markup=edit_markup,
             )
             await self.telegram.edit_message(edit)
-            if count >= 3:
-                new_text = f"{new_text}\n Можно выбрать капитана и начать игру!"
-                edit = EditMessageText(
-                    chat_id=chat_id,
-                    message_id=callback.message.message_id,
-                    text=new_text,
-                    reply_markup=kb.keyboard_select,
-                )
-                self.fsm.set_state(chat_id, self.states.select_capitan)
-                await self.telegram.edit_message(edit)
-                return
-        else:
-            await self.telegram.send_message(
-                SendMessage(
-                    chat_id=chat_id,
-                    text=f"🚫 @{callback.from_user.username} уже вступил в команду!",
-                )
-            )
 
     async def select_capitan(self, callback: CallbackQuery) -> None:
         chat_id = callback.message.chat.id
@@ -87,7 +85,7 @@ class CallbackHandler:
             return
 
         await self.db.set_capitan(chat_id, capitan_user)
-        self.fsm.set_state(chat_id, self.states.start_game)
+        await self.fsm.set_state(chat_id, self.states.start_game)
 
         await self.telegram.send_message(
             SendMessage(
@@ -107,25 +105,74 @@ class CallbackHandler:
                 text="🚀 Игра началась!",
             )
         )
+        
         await asyncio.sleep(2)
-
-        self.fsm.set_state(chat_id, self.states.question_active)
-
+        await self.fsm.set_state(chat_id, self.states.question_active)
         task = asyncio.create_task(
-            self.app.bot.handlers.game.start_game_round(chat_id)
+            self.app.bot.handlers.game.start_round(callback.message)
         )
-        return task
+        if not self.app.bot.active_tasks.get(chat_id):
+            self.app.bot.active_tasks[chat_id] = []
+
+        self.active_tasks[chat_id].append(task)
+        task.add_done_callback(lambda t: self.active_tasks.pop(chat_id, None))
 
     async def quite_game(self, callback: CallbackQuery) -> None:
         chat_id = callback.message.chat.id
+        game = await self.db.get_last_game_by_chat_id(chat_id)
+        count = len(await self.db.delete_gameuser_by_game_user(game.id, callback.from_user.id))
+        if count == 0:
+            edit = EditMessageText(
+                chat_id=chat_id,
+                message_id=callback.message.message_id,
+                text=f"Все участники покинули команду /start для создания нового",
+            )
+            await self.telegram.edit_message(edit)
+            await self.db.update_game(game.id, status=GameStatus.end)
+            await self.fsm.set_state(chat_id, self.states.none)
+            return
+        
+        game = await self.db.get_game_by_chat_id(chat_id)
+        users_in_game = await self.db.get_all_users_in_game(game.id)
+        count = len(users_in_game)
+        new_text = f"✨ Игра создана! Необходимо набрать (3/{count}) участника для начала игры\n"
+        for i, user in enumerate(users_in_game, start=1): 
+            useri = await self.db.get_user_by_id(user.user_id)
+            new_text += f"{i}) @{useri.username}\n"
 
+        if count >= 3:
+            new_text += "\nМожно выбрать капитана и начать игру!"
+            await self.fsm.set_state(chat_id, self.states.select_capitan)
+
+        edit_markup = kb.keyboard_add if count < 3 else kb.keyboard_select 
+        edit = EditMessageText(
+            chat_id=chat_id,
+            message_id=callback.message.message_id,
+            text=new_text,
+            reply_markup=edit_markup,
+        )
+        await self.telegram.edit_message(edit)
+
+    async def userquite_game(self, callback: CallbackQuery) -> None:
+        chat_id = callback.message.chat.id
+        game = await self.db.get_last_game_by_chat_id(chat_id)
+        count = len(await self.db.delete_gameuser_by_game_user(game.id, callback.from_user.id))
+        if count == 0:
+            edit = EditMessageText(
+                chat_id=chat_id,
+                message_id=callback.message.message_id,
+                text=f"Все участники покинули команду /start для создания нового",
+            )
+            await self.telegram.edit_message(edit)
+            await self.db.update_game(game.id, status=GameStatus.end)
+            await self.fsm.set_state(chat_id, self.states.none)
+            return
         await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text="👋 Вы вышли из игры. До новых встреч!",
+                text=f"@{callback.from_user.username} покинул игру.",
             )
         )
-        self.fsm.set_state(chat_id, self.states.none)
 
     async def start_game_with_same_team(self, callback: CallbackQuery) -> None:
         chat_id = callback.message.chat.id
@@ -138,7 +185,7 @@ class CallbackHandler:
                     text="🔍 Предыдущая игра не найдена. Создайте новую игру.",
                 )
             )
-            self.fsm.set_state(chat_id, self.states.none)
+            await self.fsm.set_state(chat_id, self.states.none)
             return
 
         old_users = await self.db.get_all_users_in_game(last_game.id)
@@ -150,16 +197,28 @@ class CallbackHandler:
                 user_id=user.user_id,
                 game_role=user.game_role,
             )
+        
 
-        self.fsm.set_state(chat_id, self.states.start_game)
+        await self.fsm.set_state(chat_id, self.states.add_users)
+        users_in_game = await self.db.get_all_users_in_game(new_game.id)
+        count = len(users_in_game)
+        new_text = f"✨ Игра продолжена! Необходимо набрать (3/{count}) участника для начала игры\n"
+        for i, user in enumerate(users_in_game, start=1): 
+            useri = await self.db.get_user_by_id(user.user_id)
+            new_text += f"{i}) @{useri.username}\n"
 
-        await self.telegram.send_message(
-            SendMessage(
-                chat_id=chat_id,
-                text="🚀 Новая игра началась с тем же составом!",
-                reply_markup=kb.keyboard_start,
-            )
+        if count >= 3:
+            new_text += "\nМожно выбрать капитана и начать игру!"
+            await self.fsm.set_state(chat_id, self.states.select_capitan)
+
+        edit_markup = kb.keyboard_add if count < 3 else kb.keyboard_select 
+        send = SendMessage(
+            chat_id=chat_id,
+            text=new_text,
+            reply_markup=edit_markup,
         )
+        await self.telegram.send_message(send)
+
     async def answering_player(self, callback: CallbackQuery) -> None:
         game = await self.db.get_game_by_chat_id(callback.message.chat.id)
         if not game:
@@ -169,9 +228,11 @@ class CallbackHandler:
         aswering = await self.db.get_gameuser_by_user_and_game(game.id, user_id)
         await self.db.update_gamequestion_answering_player(game.id, user_id, aswering.id)
 
+        await self.fsm.set_state(callback.message.chat.id, self.states.check_answer)
         user = await self.db.get_user_by_id(user_id)
-        await self.telegram.send_message(
-            SendMessage(
+        await self.telegram.edit_message(
+            EditMessageText(
+                message_id=callback.message.message_id,
                 chat_id=callback.message.chat.id,
                 text=f"Теперь @{user.username} отвечает своим следующим сообщением!",
             )
@@ -201,5 +262,4 @@ class CallbackHandler:
                 reply_markup=keyboard
             )
         )
-        print(m)
 

@@ -24,26 +24,26 @@ class GameHandler:
         self.states: "BotState" = app.bot.states
         self.answer_queues = app.bot.answer_queues
         self.asyncio = app.bot.utils.asyncio
+        self.active_tasks =  self.app.bot.active_tasks
 
-    async def start_game_round(self, chat_id: int) -> None:
+    async def start_round(self, message: Message) -> None:
+        chat_id = message.chat.id
         game: Game = await self.db.get_game_by_chat_id(chat_id)
         capitan = await self.db.get_capitan_by_game_id(game.id)
-        message = await self.telegram.send_message(
+        edit_message = await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
-                text=f"Раунд №{game.round+1} начался! Внимание, вопрос:"
+                text=f"Раунд №{game.round + 1} начался! Внимание, вопрос:"
             )
         )
 
-        await asyncio.sleep(3)
         question = await self.db.get_current_question(chat_id)
         if not question:
             question = await self.db.get_random_question(chat_id)
-            game_question = await self.db.create_gamequestion_by_chat_id(chat_id, question.id, capitan.id)
-        else:
-            game_question = await self.db.get_current_gamequestion(chat_id)
+            await self.db.create_gamequestion_by_chat_id(chat_id, question.id, capitan.id)
         
         if not question:
+            await self.db.update_game(game.id, status=GameStatus.end)
             await self.end_game(
                 SendMessage(
                     chat_id=chat_id,
@@ -51,17 +51,26 @@ class GameHandler:
                 )
             )
             return
+        await asyncio.sleep(3)
 
         await self.telegram.edit_message(
             EditMessageText(
                 chat_id=chat_id,
-                message_id=message.message_id,
+                message_id=edit_message.message_id,
                 text=f"Вопрос: {question.question_text} (60 секунд на обсуждение)\n\n{question.img_url or ''} ",
                 reply_markup=kb.keyboard_get
             )
         )
 
-        self.fsm.set_state(chat_id, self.states.check_answer)
+        await self.fsm.set_state(chat_id, self.states.select_answering)
+        await self.process_answer(message)
+
+    async def process_answer(self, message: Message) -> None:
+        chat_id = message.chat.id
+        game: Game = await self.db.get_game_by_chat_id(chat_id)
+        question = await self.db.get_current_question(chat_id)
+        response = "Попробуйте еще раз"
+        game_question = await self.db.get_current_gamequestion(chat_id)
 
         try:
             answer: Answer = await self.asyncio.start_timer_with_warning(chat_id)
@@ -83,22 +92,21 @@ class GameHandler:
         finally:
             await self.db.update_object(game_question)
 
-        await self.telegram.send_message(
+        new_message = await self.telegram.send_message(
             SendMessage(
                 chat_id=chat_id,
                 text=response,
             )
         )
+        await self.fsm.set_state(chat_id, self.states.round_results)
+        await self.round_results(new_message)
 
-        await asyncio.sleep(3)
-
-        self.fsm.set_state(chat_id, self.states.round_results)
-        await self.round_results(chat_id, game)
-
-    async def round_results(self, chat_id: int, game: Game) -> None:
+    async def round_results(self, message: Message) -> None:
+        chat_id = message.chat.id
+        game: Game = await self.db.get_game_by_chat_id(chat_id)
         text = f"Счёт: {game.score_gamers}:{game.score_bot} \n\n"
 
-        if game.round < 5:
+        if game.round < 2:
             if game.score_gamers > game.score_bot:
                 text += " 🏆 В пользу знатоков!"
             elif game.score_gamers < game.score_bot:
@@ -107,23 +115,23 @@ class GameHandler:
                 text += " 🤝 Пока ничья!"
 
             text += "\n\n⏳ Следующий раунд начнется через 3 секунды!"
-
-            message = await self.telegram.send_message(
+            await self.telegram.send_message(
                 SendMessage(
                     chat_id=chat_id,
                     text=text,
                 )
             )
 
-            await asyncio.sleep(3)
-            await self.db.update_game(game.id, round=game.round+1)
-            await self.start_game_round(chat_id)
+            await self.db.update_game(game.id, round=game.round + 1)
+            await self.start_round(message)
         else:
-            self.fsm.set_state(chat_id, self.states.finish)
-            await self.finish_game(chat_id, game)
+            await self.fsm.set_state(chat_id, self.states.finish)
+            await self.finish_game(message)
 
-    async def finish_game(self, chat_id: int, game: Game) -> None:
-        score_text = f"Финальный счёт: {game.score_gamers}:{game.score_bot} "
+    async def finish_game(self, message: Message) -> None:
+        chat_id = message.chat.id
+        game: Game = await self.db.get_game_by_chat_id(chat_id)
+        score_text = f"Финальный счёт: {game.score_gamers}:{game.score_bot} \n\n"
 
         if game.score_gamers > game.score_bot:
             result_text = "🎉 Победили знатоки!"
@@ -136,17 +144,11 @@ class GameHandler:
             await self.db.update_game(game.id, winner=WinnerType.not_defined)
 
         await self.telegram.send_message(
-            SendMessage(chat_id=chat_id, text=score_text)
+            SendMessage(chat_id=chat_id, text=score_text+result_text)
         )
 
-        await asyncio.sleep(3)
-
-        await self.telegram.send_message(
-            SendMessage(chat_id=chat_id, text=result_text)
-        )
-
-        await asyncio.sleep(3)
-
+        await self.db.update_game(game.id, status=GameStatus.end)
+        await self.fsm.set_state(chat_id, self.states.lobbi)
         await self.end_game(
             SendMessage(
                 chat_id=chat_id,
@@ -156,7 +158,5 @@ class GameHandler:
         )
 
     async def end_game(self, send_message: SendMessage) -> None:
-        game: Game = await self.db.get_game_by_chat_id(send_message.chat_id)
-
         await self.telegram.send_message(send_message)
-        await self.db.update_game(game.id, status=GameStatus.end)
+        
