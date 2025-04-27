@@ -1,0 +1,13 @@
+admin:
+  email: admin@admin.com
+  password: admin
+database:
+  host: postgres
+  port: 5432
+  user: postgres
+  password: artem2005
+  database: game
+jwt:
+  access_tokem_expire_minutes: 360
+  secret_key: secret_key
+  algorithm: HS256

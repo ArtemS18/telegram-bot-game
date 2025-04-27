@@ -1,0 +1,8 @@
+database:
+  host: postgres
+  port: 5432
+  user: postgres
+  password: artem2005
+  database: game
+bot:
+  token: "7566227447:AAFDnW0FaxerLK2VvZn-XiDhyltkwbQE2kg"

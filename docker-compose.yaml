@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: artem2005
+      POSTGRES_DB: game
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "0.0.0.0:15672:15672"  
+      - "0.0.0.0:5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    restart: always
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      retries: 3
+      start_period: 10s
+      timeout: 5s
+
+  admin_app:
+    build: app/admin_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres:artem2005@postgres:5432/game"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app/admin_app:/app
+    command: >
+      sh -c "alembic upgrade head &&
+        python main.py"
+
+  tg_api_app:
+    build: app/tg_api_app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./app/tg_api_app:/app
+    command: >
+      sh -c "python main.py"
+
+  bot:
+    build: app/bot_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres:artem2005@postgres:5432/game"
+      RABBITMQ_URL: "amqp://guest:guest@rabbitmq/"
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./app/bot_app:/app
+    command: >
+      sh -c "python main.py"
+
+  migrations:
+    build: app/admin_app
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres:artem2005@postgres:5432/game"
+    volumes:
+      - ./app/admin_app:/app
+    command: >
+      sh -c "alembic downgrade base && alembic upgrade head"
+
+
+
+volumes:
+  postgres_data:
