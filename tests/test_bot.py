@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.store.bot.manager import BotManager
-from app.store.tg_api.models import Chat, Message, SendMessage, Update, User
+from services.bot_app.app.bot.manager import BotManager
+from services.tg_api_app.app.store.tg_api.models import Chat, Message, SendMessage, Update, User
 
 
 @pytest.fixture
